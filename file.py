@@ -5,18 +5,22 @@ from __future__ import absolute_import
 import numpy as np
 
 from btk import btk
+import os
 
 import matplotlib
 
 import matplotlib.pyplot as plt
+from tkinter import *
+from tkinter.messagebox import *
+from tkinter import ttk
 
-# But : trouvé tous les maximum locaux 
+# But : trouvé tous les maximum locaux
 # In : un vecteur de taille nx1
 # Out : les positions x des max locaux (pas leur valeur y)
 def maxLocal(a):
     TFarray = np.array(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True])   # Rempli un vecteur avec que des False, sauf lorsqu'une donnée dans le vecteur est plus grande que son voisin de droite et de gauche (il met alors True)
     indMax = np.where( TFarray == True )    # On récupère les index où il y a les True
-    return indMax
+    return np.ravel(indMax)
 
 # Fonctions en cours, pas encore effective
 def semiMaxLocal(a):
@@ -24,11 +28,15 @@ def semiMaxLocal(a):
     indSemiMax = np.where( TFarray == True )
     return indSemiMax
 
+def findMinMin(data, Min):
+    minMin = minLocal(data[Min])
+    return Min[minMin]
+
 # Pareil que maxLocal, mais pour trouver les minimum locaux
 def minLocal(a):
     TFarray = np.array(np.r_[True, a[1:] < a[:-1]] & np.r_[a[:-1] < a[1:], True])
     indMin = np.where( TFarray == True )
-    return indMin
+    return np.ravel(indMin)
 
 # Dico avec comme clé les labels, et comme valeur un entier
 # e.g. : DicoLabels = {"LSHO" = 0, "RSHO" = 1, "RANK" = 2, ...}
@@ -68,19 +76,29 @@ def plotEvent(acq, ax):
 
     # On rajoute la légende
     # S'IL Y A UNE ERREUR, ENLEVER CETTE LIGNE
-    ax.legend((leftLineOff, rightLineStrike, rightLineOff), ('Left - Off', 'Right - Strike', 'Right - Off'))    
+    ax.legend((leftLineOff, rightLineStrike, rightLineOff), ('Left - Off', 'Right - Strike', 'Right - Off'))
 
     return plt
 
-# But : Récupérer les données 
+# But : Récupérer les données
 # In : path des données (Attention : le chemin commence de là où est le fichier)
-# Out : les données 
+# Out : les données
 def initial(pathFile):
     reader = btk.btkAcquisitionFileReader()
     reader.SetFilename(pathFile)
     reader.Update()
     acq = reader.GetOutput()
     return acq
+
+def allFiles(path):
+    files = []
+
+    # Pour trouver tous les fichiers .c3d
+    for r, d, f in os.walk(path):
+        for file in f:
+            if '.c3d' in file:
+                files.append(os.path.join(r, file))
+    return files
 
 # But : avoir des infos à propos des frames de "acq"
 # In : les données acq
@@ -93,7 +111,7 @@ def frameData(acq):
     return n_frames, first_frame, last_frame
 
 
-# But : créer un nouvel évènement 
+# But : créer un nouvel évènement
 # Un nouvel évènement est caractérisé par un label, un context, et un numéro de frame
 # In : les données "acq", un label, un context, et une frame
 def addEvent(acq, label, context, frameNumber):
@@ -108,7 +126,7 @@ def addEvent(acq, label, context, frameNumber):
 def printName(obj, namespace):
     nom = [name for name in namespace if namespace[name] is obj]
     print(nom[0],' = ', obj)
-    
+
 # But : Avoir toutes les infos d'un évènements
 # In : les données "acq", et le numéro de l'évènement
 # Out : l'évènement, le label, le context, et le num de la frame
@@ -122,7 +140,10 @@ def eventInfo(acq, numEvent):
 # But : trouver l'évènement le plus proche d'une position, frame donnée
 # In : des données "data", l'ensemble des évènements (AllEvents), le labelet le context recherché , et la position depuis laquel on recherche
 # Out : l'évènement, et la frame cprrespondante
-def closestEvent(data, AllEvents, label, context, start=1):
+def closestEvent(data, AllEvents, label=0, context=0, start=1):
+    if (label == 0) and (context == 0):
+        return AllEvents.GetItem(0), AllEvents.GetItem(0).GetFrame()
+
     eventVIP = []   # Array qui contiendra tous les évènements correspondant au même label et même contexte que demandé
     numberEvent = AllEvents.GetItemNumber()     # Nombre d'évènements au total
     for num in range(numberEvent):              # On regarde tout les évènement
@@ -152,3 +173,79 @@ def closestExtrem(start, indExtrem):  # Renvoie la position de l'extrem par rapp
     positionExtrem = indExtrem[indexMinimDist]  # On récupère la position x de l'extremum
     distance = AllDistance[indexMinimDist]      # On récupère la distance (sans la valeur absolue)
     return positionExtrem, distance, indexMinimDist
+
+def plotPosi(acq, first_frame, last_frame, position, axe, ax):
+    import matplotlib.pyplot as plt
+
+    dicoAxe = {"x" : 0, "y" : 1, "z" : 2}
+    data = np.array(acq.GetPoint(position).GetValues()[:, dicoAxe[axe]])
+    Min, Max = minLocal(data), maxLocal(data)
+
+    # Plot part
+    # ax = plt.subplot()
+    ax.plot(np.array(range(first_frame, last_frame + 1)), data, 'k')
+    ax.plot(Min, data[Min], 'o b')
+    ax.plot(Max, data[Max], 'o', color='purple')
+    # ax.plot(MinR[indexMinimDist], dataR[MinR[indexMinimDist]], 'o r')
+    # ax.plot(minMinR, dataR[minMinR], 'o', color='orange')
+    # ax.plot(autre, dataR[autre], 'o', color='brown')
+    ax = plotEvent(acq, ax)
+    ax.title(" Position = {} - axis = {}".format(position, axe))
+    # ax.show(block = False)
+    return ax
+
+def simple(acq, first_frame, last_frame, posiCombo, axeCombo , buttonCombo):
+    posiCombo['values'] = ['LFHD', 'RFHD', 'LBHD', 'RBHD', 'C7', 'T10', 'STRN', 'CLAV', 'RBAK', 'LSHO', 'LELB', 'LWRA', 'LWRB', 'RSHO', 'RELB', 'RWRA', 'RWRB', 'LASI', 'RASI', 'LPSI', 'RPSI', 'LTHI', 'RTHI', 'LKNE', 'RKNE', 'LTIB', 'RTIB', 'LANK', 'RANK', 'LHEE', 'RHEE', 'RTOE', 'LTOE']
+    buttonCombo["text"] = "PLOT"
+    buttonCombo["command"] = lambda: onePlot(acq, first_frame, last_frame, posiCombo, axeCombo )
+
+def double(acq, first_frame, last_frame, posiCombo, axeCombo , buttonCombo):
+    posiCombo['values'] = ["FHD", "BHD", "SHO", "ELB", "WRA", "WRB", "ASI", "PSI", "THI", "KNE", "TIB", "ANK", "HEE", "TOE"]
+    buttonCombo["text"] = "PLOT x2"
+    buttonCombo["command"] = lambda: twoPlot(acq, first_frame, last_frame, posiCombo, axeCombo )
+
+def onePlot (acq, first_frame, last_frame, o, p ) :                     # voir le chapitre sur les événements
+    figure2 = plt.figure(figsize=(9,7))
+    guiPlot = plt.subplot()
+    guiPlot = plotPosi(acq, first_frame, last_frame, o.get(), p.get(), guiPlot)
+    guiPlot.show(block=False)
+
+def twoPlot (acq, first_frame, last_frame, o, p ) :                     # voir le chapitre sur les événements
+    dr = 'R' + o.get()
+    ga = 'L' + o.get()
+    figure2 = plt.figure(figsize=(9,7))
+    guiPlot = plt.subplot(2,1,1)
+    guiPlot = plotPosi(acq, first_frame, last_frame, dr, p.get(), guiPlot)
+    guiPlot = plt.subplot(2,1,2)
+    guiPlot = plotPosi(acq, first_frame, last_frame, ga, p.get(), guiPlot)
+    guiPlot.show(block=False)
+
+def GUIplot(acq, point_labels):
+    # Infos utiles
+    n_frames, first_frame, last_frame = frameData(acq)
+
+    win = Tk()
+    win.title("BTK Project")
+    # win.geometry("500x100")
+
+    ttk.Label(win, text="Choix du capteur").grid(column=0, row=0)
+    posiCombo = ttk.Combobox(win, values=list(point_labels))
+    posiCombo.grid(column=0, row=1)
+    ttk.Label(win, text="Choix de l'axe").grid(column=1, row=0)
+    axeCombo = ttk.Combobox(win, values=["x", "y", "z"])
+    axeCombo.grid(column=1, row=1)
+
+
+    buttonCombo = Button (win, text="PLOT", command= lambda: onePlot(acq, first_frame, last_frame, posiCombo, axeCombo ))
+    buttonCombo.grid(column=2, row=1)
+
+
+
+    v = IntVar()
+    v.set(1)
+    R1 = Radiobutton(win, text="Plot unique", variable=v, value=1, command= lambda: simple(acq, first_frame, last_frame, posiCombo, axeCombo , buttonCombo))
+    R1.grid(column=0, row=2)
+    R2 = Radiobutton(win, text="Double Plot", variable=v, value=2, command= lambda: double(acq, first_frame, last_frame, posiCombo, axeCombo , buttonCombo))
+    R2.grid(column=1, row=2)
+
+    win.mainloop()

@@ -7,55 +7,41 @@ import numpy as np
 import os           # Pour lire le nom des fichiers
 from file import *  # Les fonctions que j'ai fait à côté
 from btk import btk # BTK
+from array import *
 import matplotlib   # Pour les plots
 import matplotlib.pyplot as plt
+from tkinter import *
+from tkinter.messagebox import *
+from tkinter import ttk
+# import messageBox
 
 # In[1]
 # Charge les données dans acq
-acc = [initial("Sub_DB_Checked\ITW\ITW_01758_20120523_23.c3d")]
-acc.append(initial("Sub_DB_Checked\ITW\ITW_01830_20121008_05.c3d"))
-acc.append(initial("Sub_DB_Checked\ITW\ITW_01888_20140319_14.c3d"))
-acc.append(initial("Sub_DB_Checked\ITW\ITW_01889_20130114_14.c3d"))
-
-acq = acc[2]
-
+fichier = []
 # Le dossier où j'ai le projet
-path = 'C:\\Users\quent\Desktop\Cours\Data Mining\Projet\BTK\Sub_DB_Checked\ITW'
+files = allFiles('C:\\Users\Windows\Desktop\BTK\Sub_DB_Checked\ITW')
+for numFiles in range(len(files)):
+    fichier.append(initial(files[numFiles]))
+print('Done')
 
-files = []
-
-# Pour trouver tous les fichiers .c3d
-for r, d, f in os.walk(path):
-    for file in f:
-        if '.c3d' in file:
-            files.append(os.path.join(r, file))
-
-
+acq = fichier[5]
+# acq = initial('C:\\Users\Windows\Desktop\BTK\ITW_00613_20100526_04.c3d')
 # In[2]
 # Infos utiles
 n_frames, first_frame, last_frame = frameData(acq)
-print(n_frames)
-
-# metadata (utile après pour récupérer des données, comme les labels)
-metadata = acq.GetMetaData()
-
-# Simple test pour essayer la fonction
-event, label, context, frame = eventInfo(acq, 2)
 
 # On récupérer tous les évènements
 AllEvents = acq.GetEvents()
-
-# On prend tous les points (mais variable par utilisé après, donc pas nécessaire)
-point_labels = metadata.FindChild("POINT").value().FindChild(
-    "LABELS").value().GetInfo().ToString()
 
 # On met dans un array les frames de tous les events
 n_events = acq.GetEventNumber()  # Nombre d'évènements
 event_frames = [acq.GetEvent(event).GetFrame() for event in range(n_events)]
 
-# In[3]
-start_frame = event_frames[0] - first_frame         # Frame du premier évènement
-end_frame = event_frames[-1] - first_frame          # Frame du dernier évènement
+metadata = acq.GetMetaData()
+point_labels = metadata.FindChild("POINT").value().FindChild("LABELS").value().GetInfo().ToString()
+point_labels = np.array(point_labels)
+printName(point_labels, globals())
+
 
 # Partie concernant les plots
 axe = 2
@@ -63,65 +49,80 @@ axe2 = 2
 element = 'KNE'     # Position du cours
 droite = 'R' + element        # Partie droite
 gauche = 'L' + element
-# position = 'LWRB'
+droite = 'T10'
+gauche = "C7"
 
 # On récupère les data droite et gauche, selon les axes
 dataR = np.array(acq.GetPoint(droite).GetValues()[:, axe])
 dataL = np.array(acq.GetPoint(gauche).GetValues()[:, axe2])
 
-# Min et max droite
-indMin = np.ravel(minLocal(dataR[:]))
-indMaxR = np.ravel(maxLocal(dataR[:]))
+# Min et max droite et droite
+MinR, MaxR = minLocal(dataR), maxLocal(dataR)
+MinL, MaxL = minLocal(dataL), maxLocal(dataL)
 
-# Min et max gauche
-indMinL = np.ravel(minLocal(dataL[:]))
-indMaxL = np.ravel(maxLocal(dataL[:]))
+# Event le plus proche du début, avec le label (strike / off) et le context (droite / gauche) donné
+evenClose, frameClose = closestEvent(dataR[:], AllEvents, label='Foot_Off_GS', context='Left')
 
-# Event le plus proche du début, avec le context et le label donné
-evenClose, frameClose = closestEvent(dataR[:], AllEvents, 'Foot_Off_GS', 'Right')
+positionExtrem, distance, indexMinimDist = closestExtrem(frameClose, MinR)
+positionExtrem2, distance2, indexMinimDist2 = closestExtrem(positionExtrem, MinL)
 
-positionExtrem, distance, indexMinimDist = closestExtrem(frameClose, indMin)
-positionExtrem2, distance2, indexMinimDist2 = closestExtrem(positionExtrem, indMinL)
+ToutEvent = [['Foot_Off_GS', 'Left'], ['Foot_Strike_GS', 'Left'], ['Foot_Off_GS', 'Right'], ['Foot_Strike_GS', 'Right']]
 
-# for minim in indMin:
+# for minim in Min:
 #     addEvent(acq, 'Foot_Strike_GS', 'Right', int(minim - distance))
 
 # Contient les prédictions
 nextFrame = []
 
-# Fait les prédictions en utilisant les points suivants
-for posi in ['LELB', 'LWRB', 'LSHO', 'LPSI', 'STRN']:
-    dataTest = np.array(acq.GetPoint(posi).GetValues()[:, 2])   # On charge les data
-    evenClose, frameClose = closestEvent(dataTest, AllEvents, 'Foot_Off_GS', 'Left')    # On cherche un évènement
-    if evenClose != 0:
-        indMinTest = np.ravel(minLocal(dataTest))
-        positionExtrem, distance, indexMinimDist = closestExtrem(frameClose, indMinTest)
-        nextFrame.append(indMinTest[indexMinimDist+2] - distance)   # On ajoute une prédiction
+# TODO : trouve un min sur 2
+# parite = indexMinimDist % 2
+# autre = Min[parite::2]
 
-printName(nextFrame, globals())
-print(np.round(np.mean(nextFrame)))
+minMinR = findMinMin(dataR, MinR)
+minMinL = findMinMin(dataL, MinL)
 
-# On rajoute l'évènement
-addEvent(acq, 'Foot_Off_GS', 'Left', int(np.round(np.mean(nextFrame))))
+# printName(minMinR, globals())
 
-# On ouvre une fenêtre 
-ax = plt.figure(figsize=(8,6))
+
+# # Fait les prédictions en utilisant les points suivants
+# for posi in ['LWRB', 'LSHO', 'LPSI', 'STRN']:
+#     dataTest = np.array(acq.GetPoint(posi).GetValues()[:, 2])   # On charge les data
+#     evenClose, frameClose = closestEvent(dataTest, AllEvents, 'Foot_Off_GS', 'Left')    # On cherche un évènement
+#     if evenClose != 0:
+#         MinTest = np.ravel(minLocal(dataTest))
+#         positionExtrem, distance, indexMinimDist = closestExtrem(frameClose, MinTest)
+#         nextFrame.append(MinTest[indexMinimDist+2] - distance)   # On ajoute une prédiction
+#
+# printName(nextFrame, globals())
+# print(np.round(np.mean(nextFrame)))
+#
+# # On rajoute l'évènement
+# addEvent(acq, 'Foot_Off_GS', 'Left', int(np.round(np.mean(nextFrame))))
+
+# On ouvre une fenêtre
+figure = plt.figure(figsize=(8,6))
 
 # Plot part
 ax = plt.subplot(2, 1, 1)
-ax.plot(np.array(range(first_frame, last_frame + 1)), dataR[:], 'k')
-ax.plot(indMin, dataR[indMin], 'o b')
-ax.plot(indMaxR, dataR[indMaxR], 'o', color='purple')
-# ax.plot(indMin[indexMinimDist], dataR[indMin[indexMinimDist]], 'o r')
-# ax.plot(indMin[indexMinimDist+2], dataR[indMin[indexMinimDist+2]], 'o r')
+ax.plot(np.array(range(first_frame, last_frame + 1)), dataR, 'k')
+ax.plot(MinR, dataR[MinR], 'o b')
+ax.plot(MaxR, dataR[MaxR], 'o', color='purple')
+# ax.plot(MinR[indexMinimDist], dataR[MinR[indexMinimDist]], 'o r')
+ax.plot(minMinR, dataR[minMinR], 'o', color='orange')
+# ax.plot(autre, dataR[autre], 'o', color='brown')
 plt = plotEvent(acq, ax)
 plt.title(" Position = {} - axis = {}".format(droite, axe))
 
 ax = plt.subplot(2, 1, 2)
-ax.plot(np.array(range(first_frame, last_frame + 1)), dataL[:], 'k')
-ax.plot(indMinL, dataL[indMinL], 'o b')
-ax.plot(indMaxL, dataL[indMaxL], 'o', color='purple')
-# ax.plot(indMinL[indexMinimDist2], dataL[indMinL[indexMinimDist2]], 'o r')
+ax.plot(np.array(range(first_frame, last_frame + 1)), dataL, 'k')
+ax.plot(MinL, dataL[MinL], 'o b')
+ax.plot(MaxL, dataL[MaxL], 'o', color='purple')
+ax.plot(minMinL, dataL[minMinL], 'o', color='orange')
+# ax.plot(MinL[indexMinimDist2], dataL[MinL[indexMinimDist2]], 'o r')
 plt = plotEvent(acq, ax)
 ax.set_xlabel(" Position = {} - axis = {}".format(gauche, axe2))
-plt.show()
+plt.show(block = False)
+
+
+
+GUIplot(acq, point_labels)
