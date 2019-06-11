@@ -10,7 +10,7 @@ import matplotlib
 
 import matplotlib.pyplot as plt
 
-# But : trouvé tous les maximum locaux 
+# But : trouvé tous les maximum locaux
 # In : un vecteur de taille nx1
 # Out : les positions x des max locaux (pas leur valeur y)
 def maxLocal(a):
@@ -66,15 +66,49 @@ def plotEvent(acq, ax):
             elif label == 'Foot_Off_GS':        # Test si c'est quand le pied ne touche plus le sol
                 rightLineOff = ax.axvline(x = event_frame, color='g', label='Right - Off', linestyle='-.')      # Plot en rouge, avec des tirets et des points
 
+
     # On rajoute la légende
     # S'IL Y A UNE ERREUR, ENLEVER CETTE LIGNE
-    ax.legend((leftLineOff, rightLineStrike, rightLineOff), ('Left - Off', 'Right - Strike', 'Right - Off'))    
+    ax.legend((leftLineOff, rightLineStrike, rightLineOff), ('Left - Off', 'Right - Strike', 'Right - Off'))
 
     return plt
 
-# But : Récupérer les données 
+# Selectionne les éléments de files ayant un event de Type labels
+# Renvoie en training set (2/3) et un testing set (1/3) constitués de ces éléments.
+def selectWithExistingEvent(files, lab, cont):
+    eventfiles = []
+    for acq in files:
+        n_events = acq.GetEventNumber()             # On récupère le nombre d'évènements, pour les parcourirs
+        for numevent in range(n_events):            # On parcours les indices des évènements
+            event = acq.GetEvent(numevent)          # On récupère un évènement, grâce à son indice correspondant
+            if event.GetLabel() == lab and event.GetContext()==cont:                        # Test si c'est le label recherché
+                eventfiles.append(acq)
+                break
+    test = np.random.choice(eventfiles, (len(eventfiles)//3), replace = False)
+    train = list(set(eventfiles)-set(test))
+    return train, test
+
+# Calcule les frames de départ et de fin du "pas" dans lequel se trouve events
+# un "pas" et définit comme la durée entre deux max du talon du coté correpondant à l'event
+def selectionnePas(acq, event):
+    if event.GetContext() == 'Left':
+        capteur = 'LHEE'
+    else:
+        capteur = 'RHEE'
+    data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
+    indMax = np.ravel(maxLocal(data[:]))
+    event_frame = event.GetFrame()
+    for i in range(len(indMax)):
+        if indMax[i]>event_frame:
+            start_step = indMax[i-1]
+            end_step = indMax[i]
+            break
+    return start_step, end_step
+
+
+# But : Récupérer les données
 # In : path des données (Attention : le chemin commence de là où est le fichier)
-# Out : les données 
+# Out : les données
 def initial(pathFile):
     reader = btk.btkAcquisitionFileReader()
     reader.SetFilename(pathFile)
@@ -93,7 +127,7 @@ def frameData(acq):
     return n_frames, first_frame, last_frame
 
 
-# But : créer un nouvel évènement 
+# But : créer un nouvel évènement
 # Un nouvel évènement est caractérisé par un label, un context, et un numéro de frame
 # In : les données "acq", un label, un context, et une frame
 def addEvent(acq, label, context, frameNumber):
@@ -108,7 +142,7 @@ def addEvent(acq, label, context, frameNumber):
 def printName(obj, namespace):
     nom = [name for name in namespace if namespace[name] is obj]
     print(nom[0],' = ', obj)
-    
+
 # But : Avoir toutes les infos d'un évènements
 # In : les données "acq", et le numéro de l'évènement
 # Out : l'évènement, le label, le context, et le num de la frame

@@ -17,10 +17,10 @@ acc.append(initial("Sub_DB_Checked\ITW\ITW_01830_20121008_05.c3d"))
 acc.append(initial("Sub_DB_Checked\ITW\ITW_01888_20140319_14.c3d"))
 acc.append(initial("Sub_DB_Checked\ITW\ITW_01889_20130114_14.c3d"))
 
-acq = acc[2]
+acq = acc[0]
 
 # Le dossier où j'ai le projet
-path = 'C:\\Users\quent\Desktop\Cours\Data Mining\Projet\BTK\Sub_DB_Checked\ITW'
+path = 'Sub_DB_Checked\ITW'
 
 files = []
 
@@ -28,9 +28,9 @@ files = []
 for r, d, f in os.walk(path):
     for file in f:
         if '.c3d' in file:
-            files.append(os.path.join(r, file))
+            files.append(initial(os.path.join(r, file)))
 
-
+acq = files[3]
 # In[2]
 # Infos utiles
 n_frames, first_frame, last_frame = frameData(acq)
@@ -60,7 +60,7 @@ end_frame = event_frames[-1] - first_frame          # Frame du dernier évèneme
 # Partie concernant les plots
 axe = 2
 axe2 = 2
-element = 'KNE'     # Position du cours
+element = 'HEE'     # Position du cours
 droite = 'R' + element        # Partie droite
 gauche = 'L' + element
 # position = 'LWRB'
@@ -104,7 +104,7 @@ print(np.round(np.mean(nextFrame)))
 # On rajoute l'évènement
 addEvent(acq, 'Foot_Off_GS', 'Left', int(np.round(np.mean(nextFrame))))
 
-# On ouvre une fenêtre 
+# On ouvre une fenêtre
 ax = plt.figure(figsize=(8,6))
 
 # Plot part
