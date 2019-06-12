@@ -14,13 +14,22 @@ from tkinter import *
 from tkinter.messagebox import *
 from tkinter import ttk
 
+# Label = strike / off ; context = droite / gauche
+
+def filtreExtremum(extrem, originalData):
+    if 0 in extrem:
+        extrem = extrem[1:]
+    if len(originalData)-1 in extrem:
+        extrem = extrem[:-1]
+    return extrem
 # But : trouvé tous les maximum locaux
 # In : un vecteur de taille nx1
 # Out : les positions x des max locaux (pas leur valeur y)
 def maxLocal(a):
     TFarray = np.array(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True])   # Rempli un vecteur avec que des False, sauf lorsqu'une donnée dans le vecteur est plus grande que son voisin de droite et de gauche (il met alors True)
-    indMax = np.where( TFarray == True )    # On récupère les index où il y a les True
-    return np.ravel(indMax)
+    indMax = np.ravel( np.where( TFarray == True ) )    # On récupère les index où il y a les True
+    indMax = filtreExtremum(indMax, a)
+    return indMax
 
 # Fonctions en cours, pas encore effective
 def semiMaxLocal(a):
@@ -35,8 +44,9 @@ def findMinMin(data, Min):
 # Pareil que maxLocal, mais pour trouver les minimum locaux
 def minLocal(a):
     TFarray = np.array(np.r_[True, a[1:] < a[:-1]] & np.r_[a[:-1] < a[1:], True])
-    indMin = np.where( TFarray == True )
-    return np.ravel(indMin)
+    indMin = np.ravel( np.where( TFarray == True ) )
+    indMin = filtreExtremum(indMin, a)
+    return indMin
 
 # Dico avec comme clé les labels, et comme valeur un entier
 # e.g. : DicoLabels = {"LSHO" = 0, "RSHO" = 1, "RANK" = 2, ...}
@@ -77,9 +87,9 @@ def plotEvent(acq, ax):
 
     # On rajoute la légende
     # S'IL Y A UNE ERREUR, ENLEVER CETTE LIGNE
-    ax.legend((leftLineOff, rightLineStrike, rightLineOff), ('Left - Off', 'Right - Strike', 'Right - Off'))
+#    ax.legend((leftLineOff, rightLineStrike, rightLineOff), ('Left - Off', 'Right - Strike', 'Right - Off'))
 
-    return plt
+    return ax
 
 # Selectionne les éléments de files ayant un event de Type labels
 # Renvoie en training set (2/3) et un testing set (1/3) constitués de ces éléments.
@@ -104,12 +114,12 @@ def selectionnePas(acq, event):
     else:
         capteur = 'RHEE'
     data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
-    indMax = np.ravel(maxLocal(data[:]))
+    indMax = np.ravel(maxLocal(data))
     event_frame = event.GetFrame()
     for i in range(len(indMax)):
         if indMax[i]>event_frame:
-            start_step = indMax[i-1]
-            end_step = indMax[i]
+            start_step = indMax[i-1]+1
+            end_step = indMax[i]+1
             break
     return start_step, end_step
 
@@ -172,7 +182,7 @@ def eventInfo(acq, numEvent):
     return event, label, context, frame
 
 # But : trouver l'évènement le plus proche d'une position, frame donnée
-# In : des données "data", l'ensemble des évènements (AllEvents), le labelet le context recherché , et la position depuis laquel on recherche
+# In : des données "data", l'ensemble des évènements (AllEvents), le label et le context recherché , et la position depuis laquel on recherche
 # Out : l'évènement, et la frame cprrespondante
 def closestEvent(data, AllEvents, label=0, context=0, start=1):
     if (label == 0) and (context == 0):
@@ -208,78 +218,94 @@ def closestExtrem(start, indExtrem):  # Renvoie la position de l'extrem par rapp
     distance = AllDistance[indexMinimDist]      # On récupère la distance (sans la valeur absolue)
     return positionExtrem, distance, indexMinimDist
 
-def plotPosi(acq, first_frame, last_frame, position, axe, ax):
-    import matplotlib.pyplot as plt
+def plotPosi(acq, position, axe, ax, event=0):
 
     dicoAxe = {"x" : 0, "y" : 1, "z" : 2}
     data = np.array(acq.GetPoint(position).GetValues()[:, dicoAxe[axe]])
+    n_frames, first_frame, last_frame = frameData(acq)
     Min, Max = minLocal(data), maxLocal(data)
 
     # Plot part
-    # ax = plt.subplot()
     ax.plot(np.array(range(first_frame, last_frame + 1)), data, 'k')
     ax.plot(Min, data[Min], 'o b')
     ax.plot(Max, data[Max], 'o', color='purple')
-    # ax.plot(MinR[indexMinimDist], dataR[MinR[indexMinimDist]], 'o r')
-    # ax.plot(minMinR, dataR[minMinR], 'o', color='orange')
-    # ax.plot(autre, dataR[autre], 'o', color='brown')
     ax = plotEvent(acq, ax)
-    ax.title(" Position = {} - axis = {}".format(position, axe))
+
+    if (event != 0):
+        print('Position de depart :', event.GetFrame())
+        positionExtrem, distance, indexMinimDist = closestExtrem(event.GetFrame(), Max)
+        ax.plot(positionExtrem, data[positionExtrem], 'o g')
+        print('Position :', positionExtrem)
+    plt.title(" Position = {} - axis = {}".format(position, axe))
     # ax.show(block = False)
     return ax
 
-def simple(acq, first_frame, last_frame, posiCombo, axeCombo , buttonCombo):
+def simple(files, posiCombo, axeCombo , buttonCombo, fileCombo):
     posiCombo['values'] = ['LFHD', 'RFHD', 'LBHD', 'RBHD', 'C7', 'T10', 'STRN', 'CLAV', 'RBAK', 'LSHO', 'LELB', 'LWRA', 'LWRB', 'RSHO', 'RELB', 'RWRA', 'RWRB', 'LASI', 'RASI', 'LPSI', 'RPSI', 'LTHI', 'RTHI', 'LKNE', 'RKNE', 'LTIB', 'RTIB', 'LANK', 'RANK', 'LHEE', 'RHEE', 'RTOE', 'LTOE']
+    posiCombo.current(0)
     buttonCombo["text"] = "PLOT"
-    buttonCombo["command"] = lambda: onePlot(acq, first_frame, last_frame, posiCombo, axeCombo )
+    buttonCombo["command"] = lambda: onePlot(files, posiCombo, axeCombo, fileCombo )
 
-def double(acq, first_frame, last_frame, posiCombo, axeCombo , buttonCombo):
+def double(files, posiCombo, axeCombo , buttonCombo, fileCombo):
     posiCombo['values'] = ["FHD", "BHD", "SHO", "ELB", "WRA", "WRB", "ASI", "PSI", "THI", "KNE", "TIB", "ANK", "HEE", "TOE"]
+    posiCombo.current(0)
     buttonCombo["text"] = "PLOT x2"
-    buttonCombo["command"] = lambda: twoPlot(acq, first_frame, last_frame, posiCombo, axeCombo )
+    buttonCombo["command"] = lambda: twoPlot(files, posiCombo, axeCombo, fileCombo )
 
-def onePlot (acq, first_frame, last_frame, o, p ) :                     # voir le chapitre sur les événements
-    figure2 = plt.figure(figsize=(9,7))
-    guiPlot = plt.subplot()
-    guiPlot = plotPosi(acq, first_frame, last_frame, o.get(), p.get(), guiPlot)
-    guiPlot.show(block=False)
-
-def twoPlot (acq, first_frame, last_frame, o, p ) :                     # voir le chapitre sur les événements
-    dr = 'R' + o.get()
-    ga = 'L' + o.get()
-    figure2 = plt.figure(figsize=(9,7))
-    guiPlot = plt.subplot(2,1,1)
-    guiPlot = plotPosi(acq, first_frame, last_frame, dr, p.get(), guiPlot)
-    guiPlot = plt.subplot(2,1,2)
-    guiPlot = plotPosi(acq, first_frame, last_frame, ga, p.get(), guiPlot)
-    guiPlot.show(block=False)
-
-def GUIplot(acq, point_labels):
-    # Infos utiles
+def onePlot (files, posiCombo, axeCombo, fileCombo ):
+    acq = files[int(fileCombo.get())]             # voir le chapitre sur les événements
     n_frames, first_frame, last_frame = frameData(acq)
+    plt.figure(figsize=(9,7))
+    guiPlot = plt.subplot()
+    guiPlot = plotPosi(acq, posiCombo.get(), axeCombo.get(), guiPlot)
+    plt.show(block=False)
+
+def twoPlot(files, posiCombo, axeCombo, fileCombo ):               # voir le chapitre sur les événements
+    acq = files[int(fileCombo.get())]
+    n_frames, first_frame, last_frame = frameData(acq)
+    dr = 'R' + posiCombo.get()
+    ga = 'L' + posiCombo.get()
+    plt.figure(figsize=(9,7))
+    guiPlot = plt.subplot(2,1,1)
+    guiPlot = plotPosi(acq, dr, axeCombo.get(), guiPlot)
+    guiPlot = plt.subplot(2,1,2)
+    guiPlot = plotPosi(acq, ga, axeCombo.get(), guiPlot)
+    plt.show(block=False)
+
+def GUIplot(files):
+    acq = files[0]
+    metadata = acq.GetMetaData()
+    point_labels = list(metadata.FindChild("POINT").value().FindChild("LABELS").value().GetInfo().ToString())
 
     win = Tk()
     win.title("BTK Project")
     # win.geometry("500x100")
 
-    ttk.Label(win, text="Choix du capteur").grid(column=0, row=0)
-    posiCombo = ttk.Combobox(win, values=list(point_labels))
-    posiCombo.grid(column=0, row=1)
-    ttk.Label(win, text="Choix de l'axe").grid(column=1, row=0)
+    ttk.Label(win, text="Choix du capteur").grid(column=1, row=0)
+    posiCombo = ttk.Combobox(win, values=point_labels)
+    posiCombo.grid(column=1, row=1)
+    ttk.Label(win, text="Choix de l'axe").grid(column=2, row=0)
     axeCombo = ttk.Combobox(win, values=["x", "y", "z"])
-    axeCombo.grid(column=1, row=1)
+    axeCombo.grid(column=2, row=1)
+    ttk.Label(win, text="Choix du fichier").grid(column=0, row=0)
+    fileCombo = ttk.Combobox(win, values=list(range(len(files))))
+    fileCombo.grid(column=0, row=1)
+    posiCombo.current(newindex=28)
+    axeCombo.current(2)
+    fileCombo.current(0)
 
 
-    buttonCombo = Button (win, text="PLOT", command= lambda: onePlot(acq, first_frame, last_frame, posiCombo, axeCombo ))
-    buttonCombo.grid(column=2, row=1)
+    buttonCombo = Button (win, text="PLOT", command= lambda: onePlot(files, posiCombo, axeCombo, fileCombo ))
+    buttonCombo.grid(column=3, row=1)
 
 
 
     v = IntVar()
-    v.set(1)
-    R1 = Radiobutton(win, text="Plot unique", variable=v, value=1, command= lambda: simple(acq, first_frame, last_frame, posiCombo, axeCombo , buttonCombo))
+#    v.set(1)
+    R1 = Radiobutton(win, text="Plot unique", variable=v, value=1, command= lambda: simple(files, posiCombo, axeCombo , buttonCombo, fileCombo))
     R1.grid(column=0, row=2)
-    R2 = Radiobutton(win, text="Double Plot", variable=v, value=2, command= lambda: double(acq, first_frame, last_frame, posiCombo, axeCombo , buttonCombo))
+    R2 = Radiobutton(win, text="Double Plot", variable=v, value=2, command= lambda: double(files, posiCombo, axeCombo , buttonCombo, fileCombo))
     R2.grid(column=1, row=2)
+    v.set(1)
 
     win.mainloop()
