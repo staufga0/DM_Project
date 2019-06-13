@@ -108,7 +108,7 @@ def selectWithExistingEvent(files, lab, cont):
 
 # Calcule les frames de départ et de fin du "pas" dans lequel se trouve events
 # un "pas" et définit comme la durée entre deux max du talon du coté correpondant à l'event
-def selectionnePas(acq, event):
+def selectStep(acq, event):
     if event.GetContext() == 'Left':
         capteur = 'LHEE'
     else:
@@ -122,6 +122,37 @@ def selectionnePas(acq, event):
             end_step = indMax[i]+1
             break
     return start_step, end_step
+
+# shape
+def shapeStepDataITW(acq, start_step, end_step):
+    step = []
+    type = []
+    resume ={}
+    #capteurs = ['RFHD', 'LFHD','RPSI','LPSI', 'RTOE','LTOE', 'STRN', 'CLAV','T10','C7']
+    #capteurs = ['RFHD', 'LFHD','RPSI','LPSI','RASI','LASI','RWRA', 'LWRA', 'STRN', 'CLAV','T10','C7']
+    capteurs = ['STRN', 'CLAV','T10']
+    for capteur in capteurs:
+        data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
+        indMax = np.ravel(maxLocal(data))
+        cnt = 0
+        for i in indMax:
+            if start_step <= i and  i<= end_step:
+                step.append(i)
+                type.append(capteur + ' max')
+                cnt += 1
+        resume[capteur + ' max'] = cnt
+        cnt = 0
+        indMin = np.ravel(minLocal(data))
+        for i in indMin:
+            if start_step <= i and  i<= end_step:
+                step.append(i)
+                type.append(capteur + ' min')
+                cnt+=1
+        resume[capteur + ' min'] = cnt
+    #print(type)
+    #print(resume)
+    if(len(step)!=12):print('ARRETER TOUT !!!!! ', len(step), resume)
+    return np.array(step)
 
 
 # But : Récupérer les données
@@ -271,6 +302,7 @@ def twoPlot(files, posiCombo, axeCombo, fileCombo ):               # voir le cha
     guiPlot = plt.subplot(2,1,2)
     guiPlot = plotPosi(acq, ga, axeCombo.get(), guiPlot)
     plt.show(block=False)
+
 
 def GUIplot(files):
     acq = files[0]
