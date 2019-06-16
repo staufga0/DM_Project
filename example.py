@@ -107,7 +107,6 @@ ax.plot(minMinR, dataR[minMinR], 'o', color='orange')
 # ax.plot(autre, dataR[autre], 'o', color='brown')
 plt = plotEvent(acq, ax)
 plt.title(" Position = {} - axis = {}".format(droite, axe))
-
 ax = plt.subplot(2, 1, 2)
 ax.plot(np.array(range(first_frame, last_frame + 1)), dataL, 'k')
 ax.plot(MinL, dataL[MinL], 'o b')

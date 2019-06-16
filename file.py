@@ -123,6 +123,37 @@ def selectionnePas(acq, event):
             break
     return start_step, end_step
 
+# shape
+def shapeStepDataITW(acq, start_step, end_step):
+    step = []
+    type = []
+    resume ={}
+    #capteurs = ['RFHD', 'LFHD','RPSI','LPSI', 'RTOE','LTOE', 'STRN', 'CLAV','T10','C7']
+    #capteurs = ['RFHD', 'LFHD','RPSI','LPSI','RASI','LASI','RWRA', 'LWRA', 'STRN', 'CLAV','T10','C7']
+    capteurs = ['STRN', 'CLAV','T10']
+    for capteur in capteurs:
+        data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
+        indMax = np.ravel(maxLocal(data))
+        cnt = 0
+        for i in indMax:
+            if start_step <= i and  i<= end_step:
+                step.append((i-start_step)/(end_step-start_step))
+                type.append(capteur + ' max')
+                cnt += 1
+        resume[capteur + ' max'] = cnt
+        cnt = 0
+        indMin = np.ravel(minLocal(data))
+        for i in indMin:
+            if start_step <= i and  i<= end_step:
+                step.append((i-start_step)/(end_step-start_step))
+                type.append(capteur + ' min')
+                cnt+=1
+        resume[capteur + ' min'] = cnt
+    #print(type)
+    #print(resume)
+    if(len(step)!=12):print('ARRETER TOUT !!!!! ', len(step), resume)
+    return np.array(step)
+
 
 # But : Récupérer les données
 # In : path des données (Attention : le chemin commence de là où est le fichier)
