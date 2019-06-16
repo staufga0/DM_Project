@@ -22,13 +22,22 @@ def filtreExtremum(extrem, originalData):
     if len(originalData)-1 in extrem:
         extrem = extrem[:-1]
     return extrem
+
+
+def rajoutBout(a, indExtrem):
+    indExtrem = np.append(0, indExtrem)
+    indExtrem = np.append(indExtrem, len(a)-1)
+    return indExtrem
+
 # But : trouvé tous les maximum locaux
 # In : un vecteur de taille nx1
 # Out : les positions x des max locaux (pas leur valeur y)
-def maxLocal(a):
+def maxLocal(a, bout=0):
     TFarray = np.array(np.r_[True, a[1:] > a[:-1]] & np.r_[a[:-1] > a[1:], True])   # Rempli un vecteur avec que des False, sauf lorsqu'une donnée dans le vecteur est plus grande que son voisin de droite et de gauche (il met alors True)
     indMax = np.ravel( np.where( TFarray == True ) )    # On récupère les index où il y a les True
     indMax = filtreExtremum(indMax, a)
+    if bout == 1:
+        indMax = rajoutBout(a, indMax)
     return indMax
 
 # Fonctions en cours, pas encore effective
@@ -42,10 +51,12 @@ def findMinMin(data, Min):
     return Min[minMin]
 
 # Pareil que maxLocal, mais pour trouver les minimum locaux
-def minLocal(a):
+def minLocal(a, bout=0):
     TFarray = np.array(np.r_[True, a[1:] < a[:-1]] & np.r_[a[:-1] < a[1:], True])
     indMin = np.ravel( np.where( TFarray == True ) )
     indMin = filtreExtremum(indMin, a)
+    if bout == 1:
+        indMin = rajoutBout(a, indMin)
     return indMin
 
 # Dico avec comme clé les labels, et comme valeur un entier
@@ -109,19 +120,22 @@ def selectWithExistingEvent(files, lab, cont):
 # Calcule les frames de départ et de fin du "pas" dans lequel se trouve events
 # un "pas" et définit comme la durée entre deux max du talon du coté correpondant à l'event
 def selectStep(acq, event):
-    if event.GetContext() == 'Left':
+    if event[0] == 'L':
         capteur = 'LHEE'
     else:
         capteur = 'RHEE'
+    taux = 0.5
     data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
     indMax = np.ravel(maxLocal(data))
-    event_frame = event.GetFrame()
-    for i in range(len(indMax)):
-        if indMax[i]>event_frame:
-            start_step = indMax[i-1]+1
-            end_step = indMax[i]+1
-            break
-    return start_step, end_step
+    seuil = np.mean(np.max(data)*taux + np.min(data)*(1-taux))
+    indMax = indMax[data[indMax] > seuil]
+    # event_frame = event.GetFrame()
+    # for i in range(len(indMax)):
+    #     if indMax[i]>event_frame:
+    #         start_step = indMax[i-1]+1
+    #         end_step = indMax[i]+1
+    #         break
+    return indMax[0], indMax[1]
 
 # shape
 def shapeStepDataITW(acq, start_step, end_step):
@@ -137,7 +151,7 @@ def shapeStepDataITW(acq, start_step, end_step):
         cnt = 0
         for i in indMax:
             if start_step <= i and  i<= end_step:
-                step.append((i-start_step)/(end_step-start_step))
+                step.append(i)
                 type.append(capteur + ' max')
                 cnt += 1
         resume[capteur + ' max'] = cnt
@@ -145,7 +159,7 @@ def shapeStepDataITW(acq, start_step, end_step):
         indMin = np.ravel(minLocal(data))
         for i in indMin:
             if start_step <= i and  i<= end_step:
-                step.append((i-start_step)/(end_step-start_step))
+                step.append(i)
                 type.append(capteur + ' min')
                 cnt+=1
         resume[capteur + ' min'] = cnt
@@ -249,17 +263,23 @@ def closestExtrem(start, indExtrem):  # Renvoie la position de l'extrem par rapp
     distance = AllDistance[indexMinimDist]      # On récupère la distance (sans la valeur absolue)
     return positionExtrem, distance, indexMinimDist
 
+# But : ploter
 def plotPosi(acq, position, axe, ax, event=0):
 
     dicoAxe = {"x" : 0, "y" : 1, "z" : 2}
     data = np.array(acq.GetPoint(position).GetValues()[:, dicoAxe[axe]])
     n_frames, first_frame, last_frame = frameData(acq)
     Min, Max = minLocal(data), maxLocal(data)
+    pas = selectStep(acq, position)
+
+
 
     # Plot part
-    ax.plot(np.array(range(first_frame, last_frame + 1)), data, 'k')
+    ax.plot(np.array(range(first_frame-1, last_frame)), data, 'k')
     ax.plot(Min, data[Min], 'o b')
     ax.plot(Max, data[Max], 'o', color='purple')
+    ax.axvline(x = pas[0], color = 'cyan')
+    ax.axvline(x = pas[1], color = 'cyan')
     ax = plotEvent(acq, ax)
 
     if (event != 0):
@@ -271,18 +291,26 @@ def plotPosi(acq, position, axe, ax, event=0):
     # ax.show(block = False)
     return ax
 
+# But : modifier le bouton, pour ploter un seul graphe
+# In : l'ensemble des fichiers ('files'), le sensor ('posiCombo'), l'axe ('axeCombo'), le bouton qui fait les plot ('buttonCombo'), et le numéro du fichier ('fileCombo')
+# Pas de sortie, mais modifie l'action de bouton
 def simple(files, posiCombo, axeCombo , buttonCombo, fileCombo):
     posiCombo['values'] = ['LFHD', 'RFHD', 'LBHD', 'RBHD', 'C7', 'T10', 'STRN', 'CLAV', 'RBAK', 'LSHO', 'LELB', 'LWRA', 'LWRB', 'RSHO', 'RELB', 'RWRA', 'RWRB', 'LASI', 'RASI', 'LPSI', 'RPSI', 'LTHI', 'RTHI', 'LKNE', 'RKNE', 'LTIB', 'RTIB', 'LANK', 'RANK', 'LHEE', 'RHEE', 'RTOE', 'LTOE']
     posiCombo.current(0)
     buttonCombo["text"] = "PLOT"
     buttonCombo["command"] = lambda: onePlot(files, posiCombo, axeCombo, fileCombo )
 
+# But : modifier le bouton, pour ploter deux graphes
+# In : l'ensemble des fichiers ('files'), le sensor ('posiCombo'), l'axe ('axeCombo'), le bouton qui fait les plot ('buttonCombo'), et le numéro du fichier ('fileCombo')
+# Pas de sortie, mais modifie l'action de bouton
 def double(files, posiCombo, axeCombo , buttonCombo, fileCombo):
     posiCombo['values'] = ["FHD", "BHD", "SHO", "ELB", "WRA", "WRB", "ASI", "PSI", "THI", "KNE", "TIB", "ANK", "HEE", "TOE"]
     posiCombo.current(0)
     buttonCombo["text"] = "PLOT x2"
     buttonCombo["command"] = lambda: twoPlot(files, posiCombo, axeCombo, fileCombo )
 
+# But : ploter un seul graphe
+# In : tous les fichiers ('files'), le capteur ('posiCombo'), l'axe ('axeCombo'), et le numéro du fichier ('fileCombo')
 def onePlot (files, posiCombo, axeCombo, fileCombo ):
     acq = files[int(fileCombo.get())]             # voir le chapitre sur les événements
     n_frames, first_frame, last_frame = frameData(acq)
@@ -291,6 +319,8 @@ def onePlot (files, posiCombo, axeCombo, fileCombo ):
     guiPlot = plotPosi(acq, posiCombo.get(), axeCombo.get(), guiPlot)
     plt.show(block=False)
 
+# But : ploter un deux graphe s
+# In : tous les fichiers ('files'), le capteur ('posiCombo'), l'axe ('axeCombo'), et le numéro du fichier ('fileCombo')
 def twoPlot(files, posiCombo, axeCombo, fileCombo ):               # voir le chapitre sur les événements
     acq = files[int(fileCombo.get())]
     n_frames, first_frame, last_frame = frameData(acq)
@@ -303,7 +333,8 @@ def twoPlot(files, posiCombo, axeCombo, fileCombo ):               # voir le cha
     guiPlot = plotPosi(acq, ga, axeCombo.get(), guiPlot)
     plt.show(block=False)
 
-
+# But : créer une fenêtre GUI pour ploter les graphes facilement
+# In : l'ensemble des fichiers
 def GUIplot(files):
     acq = files[0]
     metadata = acq.GetMetaData()
@@ -341,3 +372,139 @@ def GUIplot(files):
     v.set(1)
 
     win.mainloop()
+
+# But : prédire la distance moyenne entre un event et un extremum
+# In : tous les fihiers de training ('trainingSet'), 'eventLabel' et 'eventContext' servent à trouver l'event dans les données du sensor 'capteur',
+# 'genre' sert à savoir si on veut la distance avec un min ou un max
+def predictDist(trainingSet, eventLabel, eventContext, capteur, genre, taux):
+
+    arrayDist = []      # Initialisation du vecteur contenant les distances, de taille len(trainingSet)
+
+    for acr in trainingSet:     # On calcule la distance à travers tous les training files
+        data = np.array(acr.GetPoint(capteur).GetValues()[:, 2])        # On récupère les données
+        Min, Max = minLocal(data), maxLocal(data)                       # On récupère les extremaux
+        event, eventFrame = closestEvent(data, acr.GetEvents(), eventLabel, eventContext)   # On récupère la position de l'event
+        if genre == 'min':      # Si on veut faire avec min
+            positionExtrem, distance, indexMinimDist = closestExtrem(eventFrame, Min)
+        if genre == 'max':
+            positionExtrem, distance, indexMinimDist = closestExtrem(eventFrame, Max)
+        arrayDist.append(-distance)         # On mais le signe - car grace à ça, ça devient la distance de l'extremum vers l'event (et non plus l'inverse)
+    return np.mean(arrayDist)               # On renvoie la moyenne
+
+# But : trouver à quelles frames commencent et finissent les pas
+# In : les données ('acq'), l'ensemble des capteurs ('capteurSet')
+# Out : array contenant les frames des débuts et fins de pas
+def pasR(acq, capteurSet):
+    if capteurSet[0][0] == 'L':     # On regarde si le premier capteur concernent le pied gauche
+        capteur = 'LANK'
+    else:
+        capteur = 'RANK'
+    taux = 0.5      # le taux, pour fixer le seuil, afin d'éviter le min et max qui se chavauchent
+    data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])    # On récupère les données
+    indMax = np.ravel(maxLocal(data))                           # On récupère les max, qui représentent les débuts ou fins des pas
+    seuil = np.mean(np.max(data)*taux + np.min(data)*(1-taux))  # On calcule le seuil
+    pasRank = indMax[data[indMax] > seuil]                      # On prend que ce qui dépasse du seuil
+
+
+    pasPlus = np.append(0, pasRank)                             # On rajoute la premiere et derniere frame
+    pasPlus = np.append(pasPlus, len(data)-1)
+
+    return pasPlus, pasRank
+
+# But : prédire la position des pas / events
+# In : les données ('acr'), la distance moyenne entre event et extremum ('moyenne'), tous les capteurs qu'on souhaite utilisé ('capteurSet'), et si c'est un min ou max ('genre')
+def calcPredic(acr, moyenne, capteurSet, genre):
+    predi = {}      # Dico qui contiendra toutes les prédictions, de même taille que capteurSet
+    taux = 0.8      # Taux pour le seuil
+
+    pasPlus, pasRank = pasR(acr, capteurSet)        # On récupère les frames des pas
+    dataTout = np.array(acr.GetPoint(capteurSet[0]).GetValues()[:, 2])             # La totalité des données
+
+    for capteur in capteurSet:      # Initialisation du dico predi, qui contiendra des arrays de prédictions des events
+        predi[capteur] = []
+
+    pasRank = pasPlus               # On prend les bouts (première et dernière frame)
+
+    for i in range(len(pasRank)-1):         # On parcourt les pas
+
+        for capteur in capteurSet:          # Chaque capteur fait sa prédiction
+            data = np.array(acr.GetPoint(capteur).GetValues()[pasRank[i]:pasRank[i+1], 2])
+            seuil = np.mean(np.max(data)*taux + np.min(data)*(1-taux))
+            Min, Max = minLocal(data), maxLocal(data, 1)        # Extremum, mais juste dans le pas
+
+            if genre[capteur] == 'max':
+                Max = Max[data[Max] > seuil]
+                if len(Max) == 0:       # Au cas où...
+                    Max = [len(dataTout)-1]
+                predi[capteur].append(round(pasRank[i] + Max[-1] + moyenne[capteur]))   # + pasRank, à cause du décalage causé par le pas
+            if genre[capteur] == 'min':
+                Min = Min[data[Min] < seuil]
+                if len(Min) == 0:
+                    Min = [len(dataTout)-1]
+                predi[capteur].append(round(pasRank[i] + Min[-1] + moyenne[capteur]))
+
+    return predi
+
+# But : transformer un dico en array, ayant le même ordre que capteurSet
+# In : le dictionnaire à convertir, et l'ensemble des capteurs pour avoir un ordre
+# Out : un array dont chaque élément était dans le dico
+def dic2mat(dico, capteurSet):
+    dictArray = []
+    for capteur in capteurSet:
+        dictArray.append(dico[capteur])
+    return dictArray
+
+# But : Initialisation des poids
+# In : L'ensemble des capteurs, pour associé à chaque capteur un poids
+# Out : les poids, tous égaux
+def weightCreation(capteurSet):
+    weight = {}
+    for capteur in capteurSet:
+        weight[capteur] = 1/len(capteurSet)     # Tous les poids sont égaux au départ
+
+    return weight
+
+# But : Mettre à jour les poids, selon les résultats des prédictions
+# In : les prédictions dans un array, ayant le même ordre que capteurSet ('arrayPredi'), la frame exacte de l'event qui servira à comparer avec la prédiction
+# les derniers poids, utilisés pas la prédiction ('weight'), capteurSet, et 'nbTest' correspond au nombre de test fait jusqu'à maintenant
+# Out : les poids mis à jour
+def weightUpDate(arrayPredi, evenFrame, weight, capteurSet, nbTest):
+
+    # Initialisation des variables
+    nouvScore = {}      # Score selon la réussite de la prédiction
+    nouvWeight = {}     # Nouveaux poids, mis à jour
+    nbWeight = len(weight)  # Nombre de poids
+    somme = np.sum(np.array(range(len(weight))))        # Pour la normalisation
+
+    ecart = np.abs(arrayPredi-evenFrame)                 # Calcul de l'écart entre la frame exact et les prédictions
+    indexMin = np.argmin(ecart, axis=1)                  # On récupère l'index de l'écart le plus bon (i.e. la bonne prédiction)
+    classement = np.argsort(ecart[:, indexMin[0]])       # On fait un classement des meilleurs capteurs
+    capteurSet = np.asarray(capteurSet)
+
+    n = 0       # n représente les points, des jetons pour signifie la bonne réussite de la prédiction
+    for capteur in capteurSet[classement]:
+        n += 1
+        score = nbWeight - n            # Pour trier de façon décroissante
+        nouvScore[capteur] = score/somme    # On normalise, pour la somme donne 1
+
+    # Mise à jour des poids
+    for capteur in capteurSet:
+        nouvWeight[capteur] = (weight[capteur]*nbTest + nouvScore[capteur])/(nbTest+1)
+
+    return nouvWeight
+
+
+# But : On effectue les tests sur l'ensemble des fichiers de tests
+# In : les fichiers tests, etc... (voir predictDist)
+# Out : l'écart de frame entre la prédiction et la réalité
+def test(testingSet, eventLabel, eventContext, moyenne, weight, capteurSet, genre):
+    erreur = []
+    for acr in testingSet:
+        even, evenFrame = closestEvent(acr, acr.GetEvents(), eventLabel, eventContext)
+        predi = calcPredic(acr, moyenne, capteurSet, genre)
+
+        arrayPredi, arrayWeight = np.asarray(dic2mat(predi, capteurSet)) , dic2mat(weight, capteurSet)        # Transformation en array
+        meanPrediction = np.round(np.dot(arrayWeight, arrayPredi))         # On applique les poids pour faire la moyenne pondérée
+        erreur.append(np.min(np.abs(meanPrediction - evenFrame)))   # On trouve l'erreur (qui est la distance entre l'event et notre prediction correspondante)
+
+    return erreur

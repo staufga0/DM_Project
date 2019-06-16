@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 from network import Neural_Network
 
 import torch
+import torch.nn as nn
 
 path = 'Sub_DB_Checked\ITW'
 axe = 2
@@ -50,20 +51,35 @@ print(err)
 #print('number of training instances: ',len(train))
 '''
 acq = train[1]
-
+'''
 metadata = acq.GetMetaData()
 point_labels = list(metadata.FindChild("POINT").value().FindChild("LABELS").value().GetInfo().ToString())
 min_max = np.array([])
 print(point_labels)
 for l in point_labels:
 
+    data = np.array(acq.GetPoint(l.strip()).GetValues()[:, 2])
+    Min, Max = minLocal(data), maxLocal(data)
+    np.append(min_max,Min)
+    np.append(min_max,Max)
+print(min_max)
 
+figure = plt.figure(figsize=(8,6))
+ax = plt.subplot()
+
+ax.plot(min_max, np.zeros(min_max.shape[0]), 'o b')
+
+plt.show(block = False)
+'''
+
+
+'''
 n_events = acq.GetEventNumber()             # On récupère le nombre d'évènements, pour les parcourirs
 for numevent in range(n_events):            # On parcours les indices des évènements
     event = acq.GetEvent(numevent)          # On récupère un évènement, grâce à son indice correspondant
     if event.GetLabel() == 'Foot_Off_GS' and event.GetContext() == 'Left':
         event_frame = event.GetFrame()
-        start_step, end_step = selectionnePas(acq, event)
+        start_step, end_step = selectStep(acq, event)
         print(start_step)
         print(event_frame)
         print(end_step)
