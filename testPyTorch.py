@@ -51,7 +51,7 @@ print(err)
 #print('number of training instances: ',len(train))
 '''
 acq = train[1]
-'''
+
 metadata = acq.GetMetaData()
 point_labels = list(metadata.FindChild("POINT").value().FindChild("LABELS").value().GetInfo().ToString())
 min_max = np.array([])
