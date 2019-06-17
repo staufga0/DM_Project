@@ -25,53 +25,117 @@ for r, d, f in os.walk(path):
         if '.c3d' in file:
             files.append(initial(os.path.join(r, file)))
 
+
+
+
+
+
 '''
 train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
 train, test = selectWithExistingEvent(files, 'Foot_Strike_GS', 'Left')
 print('number of testing instances: ', len(test))
 print('number of training instances: ',len(train))
 '''
-train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
+acq = files[1]
+print( '-----------------------------------Foot_Off_GS Left')
 
-nn = Neural_Network('Foot_Off_GS','Left','ITW')
-nn.train(train,600)
-err = nn.test(test)
-print(err)
+#train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
+train, validation, test = selectWithExistingEventWithValidation(files, 'Foot_Off_GS', 'Left')
+
+nnOL = Neural_Network('Foot_Off_GS','Left','ITW')
+nnOL.train(train)
+err = nnOL.test(validation)
+print('validation error: ', err)
+
 '''
-print('------------------ right')
+nnOL = Neural_Network('Foot_Off_GS','Left','ITW')
+nnOL.train(train)
+err = nnOL.test(test)
+print('testing error: ', err)
+nnOL.addPredictedEvent(acq)
+
+#GUIplot([acq])
+
+print( '-----------------------------------Foot_Strike_GS Left')
+
+train, test = selectWithExistingEvent(files, 'Foot_Strike_GS', 'Left')
+
+nnSL = Neural_Network('Foot_Strike_GS', 'Left','ITW')
+nnSL.train(train)
+err = nnSL.test(test)
+print('testing error: ', err)
+nnSL.addPredictedEvent(acq)
+
+print( '-----------------------------------Foot_Off_GS Right')
+train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Right')
+
+nnOR = Neural_Network('Foot_Off_GS','Right','ITW')
+nnOR.train(train)
+err = nnOR.test(test)
+print('testing error: ', err)
+nnOR.addPredictedEvent(acq)
+
+print( '-----------------------------------Foot_Strike_GS Right')
 train, test = selectWithExistingEvent(files, 'Foot_Strike_GS', 'Right')
 
-nn = Neural_Network('Foot_Strike_GS','Right','ITW')
-nn.train(train,600)
-err = nn.test(test)
-print(err)
-'''
+nnSR = Neural_Network('Foot_Strike_GS','Right','ITW')
+nnSR.train(train)
+err = nnSR.test(test)
+print('testing error: ', err)
+nnSR.addPredictedEvent(acq)
 
+
+save(acq, 'test2.c3d')
+GUIplot([acq])
 #print('number of testing instances: ', len(test))
 #print('number of training instances: ',len(train))
+
 '''
-acq = train[1]
+
+'''
+acq = files[9]
 
 metadata = acq.GetMetaData()
 point_labels = list(metadata.FindChild("POINT").value().FindChild("LABELS").value().GetInfo().ToString())
+
+point_labels = ['RFHD','LFHD','LBHD','RSHO','RASI','RPSI','LPSI','RHEE', 'STRN','CLAV','T10','C7']
 min_max = np.array([])
 print(point_labels)
 for l in point_labels:
+    data = np.array(acq.GetPoint(l.strip()).GetValues()[:, 2])
+
+    Min, Max = minLocal(data), maxLocal(data)
+    #plt.plot(Min, np.zeros(Min.shape[0]), 'o b')
+    #plt.legend('minimum for capteur ', l)
+
+    #min_max = np.append(min_max,Min)
+    min_max = np.append(min_max,Max)
+
+#plt.plot(min_max, np.zeros(min_max.shape[0]), 'o b')
+#plt.ylabel('some numbers')
+#plt.show()
+min_max = np.sort(min_max)
+isole = []
+for i in range(min_max.shape[0]-1):
+    if i != 0:
+        if(min_max[i]-min_max[i-1]>2 and min_max[i+1]-min_max[i]>2):
+            isole.append(min_max[i])
+
+print(isole)
+
+capteur_label = []
+for l in point_labels:
 
     data = np.array(acq.GetPoint(l.strip()).GetValues()[:, 2])
+
     Min, Max = minLocal(data), maxLocal(data)
-    np.append(min_max,Min)
-    np.append(min_max,Max)
-print(min_max)
+    if(len(set(Min.tolist())& set(isole)) !=0 ): capteur_label.append('min '+l)
+    if(len(set(Max.tolist())& set(isole)) !=0 ): capteur_label.append('max '+l)
+print(capteur_label)
 
-figure = plt.figure(figsize=(8,6))
-ax = plt.subplot()
 
-ax.plot(min_max, np.zeros(min_max.shape[0]), 'o b')
 
-plt.show(block = False)
 '''
-
 
 '''
 n_events = acq.GetEventNumber()             # On récupère le nombre d'évènements, pour les parcourirs

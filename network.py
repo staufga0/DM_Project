@@ -12,13 +12,16 @@ class Neural_Network(nn.Module):
         self.label = lab
         self.cont = cont
         self.capteurs = []
-        n_in, n_h, n_out = 1, 40, 1
+        self.tol = 8
+        self.n_in, n_h, n_out = 1, 40, 1
         if(type == 'ITW'):
             self.capteurs = ['STRN', 'CLAV','T10']
-            n_in = 12
+            self.n_in = 12
+            #self.capteurs = ['RFHD','LBHD','RSHO','RASI','RPSI','STRN','CLAV']
+            #self.n_in = 28
 
 
-        self.model = nn.Sequential(nn.Linear(n_in, n_h, bias=True),
+        self.model = nn.Sequential(nn.Linear(self.n_in, n_h, bias=True),
                              nn.ReLU(),
                              nn.Linear(n_h, n_out, bias=True),
                              nn.Sigmoid()
@@ -28,7 +31,7 @@ class Neural_Network(nn.Module):
 
 
 
-    def train(self, train, nbrIt = 600):
+    def train(self, train, nbrIt = 1000):
 
         Xtrain, Ytrain, start_step, end_step = self.shapeTrainingAndTestingData(train) # the data are shaped to fit the neural network
         x = torch.from_numpy(Xtrain).float()
@@ -83,41 +86,65 @@ class Neural_Network(nn.Module):
         else:
             capteur = 'RHEE'
         data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
-        indMax = np.ravel(maxLocal(data))
+        indMax = np.sort(np.ravel(maxLocal(data)))
         event_frame = event.GetFrame()
         for i in range(len(indMax)):
             if indMax[i]>event_frame:
                 start_step = indMax[i-1]+1
+                if(i==0): start_step = 0    #if i==0 the start of the step has been corrupted
                 end_step = indMax[i]+1
                 break
+        if(end_step-start_step<0) :
+            print('error with the step boundaries in selectStepWithEvent: eventframe: ', event_frame, ' start_step: ', start_step,' end_step: ', end_step, ' indMax: ', indMax)
+
         return start_step, end_step
 
     def shapeStepData(self, acq, start_step, end_step):
+        if(end_step-start_step<0) :
+            print('error with the step boundaries')
+            return(np.array([]))
         step = []
         #type = []
         resume ={}
+
 
         for capteur in self.capteurs:
             data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
             indMax = np.ravel(maxLocal(data))
             cnt = 0
+            locCount = 0
             for i in indMax:
-                if start_step <= i and  i<= end_step:
+                if start_step - self.tol <= i and  i-self.tol <= end_step and locCount <2 :
                     step.append((i-start_step)/(end_step-start_step))
                     #type.append(capteur + ' max')
                     cnt += 1
-            resume[capteur + ' max'] = cnt
+                    locCount +=1
+            while(locCount !=2):
+                step.append(0)
+                locCount +=1
+                resume[capteur + ' max'] = cnt
             cnt = 0
             indMin = np.ravel(minLocal(data))
+            locCount = 0
             for i in indMin:
-                if start_step <= i and  i<= end_step:
+                if start_step-self.tol <= i and  i-self.tol<= end_step and locCount <2:
                     step.append((i-start_step)/(end_step-start_step))
                     #type.append(capteur + ' min')
                     cnt+=1
+                    locCount+=1
+            while(locCount !=2):
+                step.append(0)
+                locCount +=1
             resume[capteur + ' min'] = cnt
             #print(type)
             #print(resume)
-        if(len(step)!=12):print('ARRETER TOUT !!!!! ', len(step), resume)
+        if(len(step)!=self.n_in):
+            print("some data weren't shaped correctly", len(step), resume)
+            #print('ARRETER TOUT !!!!! ', len(step), resume)
+            #print(indMin)
+            #print(indMax)
+            #print(start_step)
+            #print(end_step)
         return np.array(step)
 
 
@@ -136,11 +163,12 @@ class Neural_Network(nn.Module):
                 if event.GetLabel() == self.label and event.GetContext() == self.cont:
                     event_frame = event.GetFrame()
                     start, end = self.selectStepWithEvent(acq, event)
-                    start_step.append(start)
-                    end_step.append(end)
-                    Yt.append((event_frame-start)/(end-start))
                     shapedData = self.shapeStepData(acq, start, end)
-                    Xt.append(shapedData)
+                    if shapedData.shape[0]==self.n_in :
+                        Xt.append(shapedData)
+                        Yt.append((event_frame-start)/(end-start))
+                        start_step.append(start)
+                        end_step.append(end)
         Xt = np.array(Xt)
         Yt = np.array(Yt)
         start_step = np.array(start_step)
@@ -150,3 +178,29 @@ class Neural_Network(nn.Module):
 
     def denormalize(self, Y,start,end):
         return Y*(end-start)+start
+
+
+    def predictEvent(self, acq):
+        start_steps, end_steps = selectAllSteps(acq,self.cont)
+        predEventFrames = []
+        for i in range(len(start_steps)):
+            if(start_steps[i] - end_steps[i]>0): print('trouble with the selectAllSteps function (boundaries in inverse order)')
+            shapedData = self.shapeStepData(acq, start_steps[i], end_steps[i])
+            if shapedData.shape[0]==self.n_in :
+                x = torch.from_numpy(np.array(shapedData)).float()
+                y_pred = self.model(x)
+                result = np.vectorize(round)(self.denormalize(y_pred.detach().numpy().transpose(),start_steps[i],end_steps[i]))
+                predEventFrames.append(result)
+        return predEventFrames
+
+    def addPredictedEvent(self, acq):
+        predEventFrames = self.predictEvent(acq)
+        for numevent in range(acq.GetEventNumber()):
+            event = acq.GetEvent(numevent)
+            if event.GetLabel() == self.label and event.GetContext() == self.cont:
+                for frame in predEventFrames:
+                    if(abs(event.GetFrame()-frame)<20) : predEventFrames.remove(frame)
+
+        for frame in predEventFrames:
+            addEvent(acq, self.label, self.cont, int(frame))
+            print('event added : ', int(frame))
