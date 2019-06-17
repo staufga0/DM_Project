@@ -5,15 +5,16 @@ from btk import btk
 from file import *
 
 class Neural_Network(nn.Module):
-    def __init__(self, lab, cont, type):
+    def __init__(self, lab = 'Foot_Off_GS', cont='Left', type='ITW', hidden = 5, tolerance = 3, lr = 0.05):
         super(Neural_Network, self).__init__()
         # parameters
         # TODO: parameters can be parameterized instead of declaring them here
         self.label = lab
         self.cont = cont
         self.capteurs = []
-        self.tol = 8
-        self.n_in, n_h, n_out = 1, 40, 1
+        self.tol = tolerance
+        self.n_in, n_h, n_out = 1, hidden, 1
+        self.patch = True                                      #flag to indicate if we add 0 when we require an anseen max or min
         if(type == 'ITW'):
             self.capteurs = ['STRN', 'CLAV','T10']
             self.n_in = 12
@@ -27,11 +28,13 @@ class Neural_Network(nn.Module):
                              nn.Sigmoid()
                              )
         self.criterion = torch.nn.MSELoss()
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.05)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr)
 
 
+    def setPatch(self, p):
+        self.patch = p
 
-    def train(self, train, nbrIt = 1000):
+    def train(self, train, nbrIt = 600):
 
         Xtrain, Ytrain, start_step, end_step = self.shapeTrainingAndTestingData(train) # the data are shaped to fit the neural network
         x = torch.from_numpy(Xtrain).float()
@@ -40,9 +43,12 @@ class Neural_Network(nn.Module):
         for epoch in range(nbrIt):
             # Forward Propagation
             y_pred = self.model(x)
+
             # Compute and print loss
             loss = self.criterion(y_pred, y)
+
             #if epoch % 20 == 0 : print('epoch: ', epoch,' loss: ', loss.item())
+
             # Zero the gradients
             self.optimizer.zero_grad()
 
@@ -51,11 +57,12 @@ class Neural_Network(nn.Module):
 
             # Update the parameters
             self.optimizer.step()
+
         result = self.denormalize(y_pred.detach().numpy().transpose(),start_step,end_step)
         Y_denormalized = self.denormalize(Ytrain,start_step,end_step)
-        print('targeted ouptup: ', Y_denormalized)
-        print('obtained output: ', result)
-        print( 'diff: ', Y_denormalized- np.vectorize(round)(result))
+        #print('targeted ouptup: ', Y_denormalized)
+        #print('obtained output: ', result)
+        print( 'difference between actual and predicted output after training: ', Y_denormalized- np.vectorize(round)(result))
 
         return result
 
@@ -113,16 +120,18 @@ class Neural_Network(nn.Module):
             indMax = np.ravel(maxLocal(data))
             cnt = 0
             locCount = 0
+            f= False
             for i in indMax:
                 if start_step - self.tol <= i and  i-self.tol <= end_step and locCount <2 :
                     step.append((i-start_step)/(end_step-start_step))
                     #type.append(capteur + ' max')
                     cnt += 1
                     locCount +=1
-            while(locCount !=2):
+            while(locCount !=2 and self.patch):
                 step.append(0)
+                f=True
                 locCount +=1
-                resume[capteur + ' max'] = cnt
+            resume[capteur + ' max'] = cnt
             cnt = 0
             indMin = np.ravel(minLocal(data))
             locCount = 0
@@ -132,19 +141,20 @@ class Neural_Network(nn.Module):
                     #type.append(capteur + ' min')
                     cnt+=1
                     locCount+=1
-            while(locCount !=2):
+            while(locCount !=2 and self.patch):
                 step.append(0)
+                f= True
                 locCount +=1
             resume[capteur + ' min'] = cnt
             #print(type)
             #print(resume)
         if(len(step)!=self.n_in):
             print("some data weren't shaped correctly", len(step), resume)
-            #print('ARRETER TOUT !!!!! ', len(step), resume)
             #print(indMin)
             #print(indMax)
             #print(start_step)
             #print(end_step)
+        if(f):print('Some data have been patched')
         return np.array(step)
 
 

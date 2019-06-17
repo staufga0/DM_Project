@@ -37,17 +37,102 @@ print('number of testing instances: ', len(test))
 print('number of training instances: ',len(train))
 '''
 acq = files[1]
-print( '-----------------------------------Foot_Off_GS Left')
 
+
+#train, validation, test = selectWithExistingEventWithValidation(files, 'Foot_Off_GS', 'Left')
 #train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
-train, validation, test = selectWithExistingEventWithValidation(files, 'Foot_Off_GS', 'Left')
 
-nnOL = Neural_Network('Foot_Off_GS','Left','ITW')
+label = 'Foot_Off_GS'
+contexte = 'Left'
+
+train, test = selectWithExistingEvent(files, label, contexte)
+print('number of testing instances: ', len(test))
+print('number of training instances: ',len(train))
+v_batch = int(len(train)/4+0.5)    #used for cross validation using 1/4 of the training set each time
+if v_batch == 0:v_batch =1
+
+#start finding best value for hyper parameter h = number of hidden layers, t = tolerance to add to a step
+min = 100
+best =  Neural_Network(label,contexte,'ITW')
+bh=0
+bt=0
+berr=[]
+for h in np.arange(1, 12, 1):
+    print('-----------------------------------h = ', h)
+    for t in np.arange(0, 10, 2):
+        print('-----------------------------------t = ', t)
+        err = []
+        for n in np.arange(0, len(train),v_batch):
+            tr = train
+            val = []
+            for i in range(v_batch):
+                if n+i<len(train):
+                    tr = list(set(tr)-set([train[n+i]]))
+                    val.append(train[n+i])
+            nnOL = Neural_Network(label,contexte,'ITW', h, t)
+            nnOL.setPatch(True)
+            nnOL.train(tr)
+            err = np.append(err, nnOL.test(val))
+
+        if np.abs(err).mean()<min:
+            berr= err
+            print(berr)
+            min = np.abs(err).mean()
+            best = nnOL
+            bh=h
+            bt=t
+print(min)
+print('best error on validation Data:', berr)
+print('bh = ', bh)
+print('bt = ', bt)
+
+nnOL = Neural_Network('Foot_Off_GS','Left','ITW', bh, bt)
+nnOL.setPatch(True)
+nnOL.train(train)
+err = nnOL.test(test)
+print('actual testing error: ', err)
+print( 'mean: ', np.abs(err).mean())
+
+
+
+'''
+for v in train:
+    tr=train.remove(v)
+
+nnOL = Neural_Network('Foot_Off_GS','Left','ITW', 20, 5, 0.5)
 nnOL.train(train)
 err = nnOL.test(validation)
 print('validation error: ', err)
 
+min = 100
+best =  Neural_Network('Foot_Off_GS','Left','ITW')
+bh=5
+bt=0
+berr=[]
+for h in np.arange(1, 7, 1):
+    print('-----------------------------------h = ', h)
+    for t in np.arange(0, 11, 1):
+        print('-----------------------------------t = ', t)
+
+        nnOL = Neural_Network('Foot_Off_GS','Left','ITW', h, t)
+        nnOL.train(train)
+        err = nnOL.test(validation)
+        if np.abs(err).mean()<min:
+            berr= err
+            min = np.abs(err).mean()
+            best = nnOL
+            bh=h
+            bt=t
+
+print(min)
+print('best error on validation Data:', berr)
+print('bh = ', bh)
+print('bt = ', bt)
+
 '''
+
+'''
+train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
 nnOL = Neural_Network('Foot_Off_GS','Left','ITW')
 nnOL.train(train)
 err = nnOL.test(test)
@@ -86,11 +171,23 @@ nnSR.addPredictedEvent(acq)
 
 
 save(acq, 'test2.c3d')
+#GUIplot([acq])
+for numevent in range(acq.GetEventNumber()):
+    event = acq.GetEvent(numevent)
+    print('label: ', event.GetLabel(), ' context: ', event.GetContext(), ' frame: ', event.GetFrame())
+
+
+acq = initial('test2.c3d')
+print('---------------after save and reload')
+for numevent in range(acq.GetEventNumber()):
+    event = acq.GetEvent(numevent)
+    print('label: ', event.GetLabel(), ' context: ', event.GetContext(), ' frame: ', event.GetFrame())
+
 GUIplot([acq])
 #print('number of testing instances: ', len(test))
 #print('number of training instances: ',len(train))
-
 '''
+
 
 '''
 acq = files[9]

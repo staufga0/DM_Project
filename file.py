@@ -202,6 +202,7 @@ def save(acq, pathFile):
     writer.SetFilename(pathFile)
     writer.Update()
 
+
 def allFiles(path):
     files = []
 
