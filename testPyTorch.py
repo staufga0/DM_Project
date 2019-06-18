@@ -14,16 +14,42 @@ from network import Neural_Network
 import torch
 import torch.nn as nn
 
-path = 'Sub_DB_Checked\ITW'
+tournus = 4
+
+
+label = 'Foot_Strike_GS'
+contexte = 'Left'
+type = 'CP'
+
+if tournus == 1:
+    label = 'Foot_Off_GS'
+elif tournus == 2:
+    contexte = 'Right'
+elif tournus == 3:
+    contexte = 'Right'
+    label = 'Foot_Off_GS'
+
+print('label: ', label, ' contexte: ', contexte, ' type: ', type)
+
+
+path = 'Sub_DB_Checked'+'\\'+ type
 axe = 2
 
-files = []
+files = allFiles(path)
+#GUIplot(files)
 
-# Pour trouver tous les fichiers .c3d
-for r, d, f in os.walk(path):
-    for file in f:
-        if '.c3d' in file:
-            files.append(initial(os.path.join(r, file)))
+for t in np.arange(0, 10, 2):
+    print('-----------------------------------t = ', t)
+    for lab in ['Foot_Strike_GS','Foot_Off_GS']:
+        for cont in ['Left', 'Right']:
+            train, test = selectWithExistingEvent(files, lab, cont)
+            #print('number of testing instances: ', len(test))
+            #print('number of training instances: ',len(train))
+            nnOL = Neural_Network(lab,cont,type,5,t)
+            nnOL.train(train)
+            err = nnOL.test(test)
+            print('actual testing error: ', err)
+            print('label: ', lab, ' contexte: ', cont, ' type: ', type, ' err on training: ',  np.abs(err).mean())
 
 
 
@@ -31,29 +57,81 @@ for r, d, f in os.walk(path):
 
 
 '''
-train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
-train, test = selectWithExistingEvent(files, 'Foot_Strike_GS', 'Left')
-print('number of testing instances: ', len(test))
-print('number of training instances: ',len(train))
-'''
-acq = files[1]
 
-
-#train, validation, test = selectWithExistingEventWithValidation(files, 'Foot_Off_GS', 'Left')
-#train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
-
-label = 'Foot_Off_GS'
-contexte = 'Left'
 
 train, test = selectWithExistingEvent(files, label, contexte)
 print('number of testing instances: ', len(test))
 print('number of training instances: ',len(train))
+
+'''
+'''
+
+nnOL = Neural_Network(label,contexte,type)
+nnOL.train(train)
+err = nnOL.test(test)
+print('actual testing error: ', err)
+print( 'mean: ', np.abs(err).mean())
+
+for p in nnOL.model.parameters():
+    print(p)
+'''
+'''
 v_batch = int(len(train)/4+0.5)    #used for cross validation using 1/4 of the training set each time
 if v_batch == 0:v_batch =1
 
 #start finding best value for hyper parameter h = number of hidden layers, t = tolerance to add to a step
 min = 100
-best =  Neural_Network(label,contexte,'ITW')
+best =  Neural_Network(label,contexte,type)
+bh=0
+berr=[]
+for h in np.arange(1, 21, 1):
+    print('-----------------------------------h = ', h)
+    err = []
+    for n in np.arange(0, len(train),v_batch):
+        tr = train
+        val = []
+        for i in range(v_batch):
+            if n+i<len(train):
+                tr = list(set(tr)-set([train[n+i]]))
+                val.append(train[n+i])
+        nnOL = Neural_Network(label,contexte,type, h)
+        nnOL.setPatch(True)
+        nnOL.train(tr)
+        err = np.append(err, nnOL.test(val))
+
+    if np.abs(err).mean()<min:
+        berr= err
+        print(berr)
+        min = np.abs(err).mean()
+        best = nnOL
+        bh=h
+print(min)
+print('best error on validation Data:', berr)
+print('bh = ', bh)
+
+nnOL = Neural_Network(label,contexte,type, bh)
+nnOL.setPatch(True)
+nnOL.train(train)
+err = nnOL.test(test)
+print('actual testing error: ', err)
+print( 'mean: ', np.abs(err).mean())
+print('label: ', label, ' contexte: ', contexte, ' type: ', type)
+
+
+
+
+
+'''
+'''
+
+#cross correlation with tolerance as an hyper parameter
+
+v_batch = int(len(train)/4+0.5)    #used for cross validation using 1/4 of the training set each time
+if v_batch == 0:v_batch =1
+
+#start finding best value for hyper parameter h = number of hidden layers, t = tolerance to add to a step
+min = 100
+best =  Neural_Network(label,contexte,type)
 bh=0
 bt=0
 berr=[]
@@ -69,7 +147,7 @@ for h in np.arange(1, 12, 1):
                 if n+i<len(train):
                     tr = list(set(tr)-set([train[n+i]]))
                     val.append(train[n+i])
-            nnOL = Neural_Network(label,contexte,'ITW', h, t)
+            nnOL = Neural_Network(label,contexte,type, h, t)
             nnOL.setPatch(True)
             nnOL.train(tr)
             err = np.append(err, nnOL.test(val))
@@ -86,15 +164,15 @@ print('best error on validation Data:', berr)
 print('bh = ', bh)
 print('bt = ', bt)
 
-nnOL = Neural_Network('Foot_Off_GS','Left','ITW', bh, bt)
+nnOL = Neural_Network(label,contexte,type, bh, bt)
 nnOL.setPatch(True)
 nnOL.train(train)
 err = nnOL.test(test)
 print('actual testing error: ', err)
 print( 'mean: ', np.abs(err).mean())
+print('label: ', label, ' contexte: ', contexte, ' type: ', type)
 
-
-
+'''
 '''
 for v in train:
     tr=train.remove(v)
@@ -130,8 +208,8 @@ print('bh = ', bh)
 print('bt = ', bt)
 
 '''
-
 '''
+
 train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
 nnOL = Neural_Network('Foot_Off_GS','Left','ITW')
 nnOL.train(train)
@@ -169,7 +247,6 @@ err = nnSR.test(test)
 print('testing error: ', err)
 nnSR.addPredictedEvent(acq)
 
-
 save(acq, 'test2.c3d')
 #GUIplot([acq])
 for numevent in range(acq.GetEventNumber()):
@@ -183,11 +260,11 @@ for numevent in range(acq.GetEventNumber()):
     event = acq.GetEvent(numevent)
     print('label: ', event.GetLabel(), ' context: ', event.GetContext(), ' frame: ', event.GetFrame())
 
-GUIplot([acq])
+#GUIplot([acq])
 #print('number of testing instances: ', len(test))
 #print('number of training instances: ',len(train))
-'''
 
+'''
 
 '''
 acq = files[9]
@@ -230,98 +307,4 @@ for l in point_labels:
     if(len(set(Max.tolist())& set(isole)) !=0 ): capteur_label.append('max '+l)
 print(capteur_label)
 
-
-
-'''
-
-'''
-n_events = acq.GetEventNumber()             # On récupère le nombre d'évènements, pour les parcourirs
-for numevent in range(n_events):            # On parcours les indices des évènements
-    event = acq.GetEvent(numevent)          # On récupère un évènement, grâce à son indice correspondant
-    if event.GetLabel() == 'Foot_Off_GS' and event.GetContext() == 'Left':
-        event_frame = event.GetFrame()
-        start_step, end_step = selectStep(acq, event)
-        print(start_step)
-        print(event_frame)
-        print(end_step)
-'''
-'''
-Xtrain = []
-Ytrain = []
-step_length = []
-for acq in train:
-    #print('event--------------------------')
-    n_events = acq.GetEventNumber()             # On récupère le nombre d'évènements, pour les parcourirs
-    for numevent in range(n_events):            # On parcours les indices des évènements
-        event = acq.GetEvent(numevent)          # On récupère un évènement, grâce à son indice correspondant
-        if event.GetLabel() == 'Foot_Off_GS' and event.GetContext() == 'Left':
-            event_frame = event.GetFrame()
-            start_step, end_step = selectStep(acq, event)
-            step_length.append(end_step-start_step)
-            Ytrain.append((event_frame-start_step))
-            #print('starting frame:', start_step)
-            #print('event frame: ', event_frame)
-            #print('end frame: ', end_step)
-            shapedData = shapeStepDataITW(acq, start_step, end_step)
-            Xtrain.append(shapedData)
-            #np.append(shaped_train, [shapedData], axis=0)
-            #print(shapedData)
-            #print('shape of Data: ', shapedData.shape)
-
-Xtrain =np.array(Xtrain)
-#Xtrain = Xtrain/np.(Xtrain)
-#print(Xtrain)
-step_length = np.array(step_length)
-Ytrain = np.array(Ytrain)
-Ynorm = Ytrain/step_length
-
-print('moyenne output = ', np.mean(Ytrain))
-#------------------------------------------------------------------------------------------------training part
-
-n_in, n_h, n_out, batch_size = Xtrain.shape[1], 40, 1, Xtrain.shape[0]
-n_h2=20
-n_h3 = 20
-
-x = torch.from_numpy(Xtrain).float()
-print(x.shape)
-#x = torch.randn(batch_size, n_in)
-y = torch.from_numpy(Ynorm.reshape(Ynorm.shape[0],1)).float()
-print(y.shape)
-
-model = nn.Sequential(nn.Linear(n_in, n_h, bias=True),
-                     nn.ReLU(),
-                     nn.Linear(n_h, n_out, bias=True),
-                     nn.Sigmoid()
-                     )
-#criterion = torch.nn.L1Loss()
-#criterion = torch.nn.SmoothL1Loss()
-criterion = torch.nn.MSELoss()
-
-optimizer = torch.optim.SGD(model.parameters(), lr=0.05)
-y_pred = []
-for epoch in range(1000):
-    # Forward Propagation
-    y_pred = model(x)
-    if epoch<5 : print(y_pred)
-    # Compute and print loss
-    loss = criterion(y_pred, y)
-    if epoch % 20 == 0 : print('epoch: ', epoch,' loss: ', loss.item())
-    # Zero the gradients
-    optimizer.zero_grad()
-
-    # perform a backward pass (backpropagation)
-    loss.backward()
-
-    # Update the parameters
-    optimizer.step()
-print(y_pred)
-
-print(y_pred-y)
-y_prednp = y_pred.detach().numpy().transpose()
-result = y_prednp*step_length
-print(result)
-print(Ytrain)
-
-print(Ytrain-np.vectorize(round)(result))
-#print(round(result))
 '''

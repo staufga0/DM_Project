@@ -48,6 +48,19 @@ def minLocal(a):
     indMin = filtreExtremum(indMin, a)
     return indMin
 
+
+#clean the arrays of all local extremum that are too close of eachother (extremums super local)
+def cleanMinMax(indMin, indMax):
+    for i in indMax:
+        for j in np.flip(indMin,0):
+            if(np.abs(i-j)<7):
+                indMax = np.extract(indMax!=i,indMax)
+
+                indMin = np.extract(indMin!=j,indMin)
+                break
+    return indMin, indMax
+
+
 # Dico avec comme clé les labels, et comme valeur un entier
 # e.g. : DicoLabels = {"LSHO" = 0, "RSHO" = 1, "RANK" = 2, ...}
 # Fonction jamais utilisé pour l'instant
@@ -293,7 +306,7 @@ def plotPosi(acq, position, axe, ax, event=0):
     data = np.array(acq.GetPoint(position).GetValues()[:, dicoAxe[axe]])
     n_frames, first_frame, last_frame = frameData(acq)
     Min, Max = minLocal(data), maxLocal(data)
-
+    #Min, Max = cleanMinMax(Min, Max)  #used to clean some local extremums
     # Plot part
     ax.plot(np.array(range(first_frame, last_frame + 1)), data, 'k')
     ax.plot(Min, data[Min], 'o b')

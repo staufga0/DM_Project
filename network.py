@@ -5,7 +5,7 @@ from btk import btk
 from file import *
 
 class Neural_Network(nn.Module):
-    def __init__(self, lab = 'Foot_Off_GS', cont='Left', type='ITW', hidden = 5, tolerance = 3, lr = 0.05):
+    def __init__(self, lab = 'Foot_Off_GS', cont='Left', type='ITW', hidden = 5, tolerance = 0, lr = 0.05):
         super(Neural_Network, self).__init__()
         # parameters
         # TODO: parameters can be parameterized instead of declaring them here
@@ -14,13 +14,21 @@ class Neural_Network(nn.Module):
         self.capteurs = []
         self.tol = tolerance
         self.n_in, n_h, n_out = 1, hidden, 1
+        self.reg = 0.0001
         self.patch = True                                      #flag to indicate if we add 0 when we require an anseen max or min
         if(type == 'ITW'):
-            self.capteurs = ['STRN', 'CLAV','T10']
-            self.n_in = 12
-            #self.capteurs = ['RFHD','LBHD','RSHO','RASI','RPSI','STRN','CLAV']
-            #self.n_in = 28
-
+            self.capteurs = ['RFHD','LBHD','RSHO','RASI','RPSI','STRN','CLAV', 'RBHD', 'RELB', 'LELB', 'RTHI', 'RWRB', 'LKNE', 'RWRA', 'LWRA', 'RANK', 'LANK', 'LSHO', 'LASI', 'LTHI', 'RKNE']
+            self.n_in = len(self.capteurs)*2
+        elif(type == 'FD'):
+            self.capteurs = ['RFHD', 'LFHD', 'RBHD', 'LBHD', 'RSHO', 'C7', 'T10', 'CLAV',         'RWRA', 'RASI', 'LASI', 'STRN', ]
+            self.n_in = len(self.capteurs)*2
+            #self.n_in = 52
+        elif(type == 'CP'):
+            self.capteurs = ['LSHO',             'RFHD', 'RBHD', 'LBHD', 'RASI', 'LASI', 'RPSI', 'LPSI', 'C7', 'T10', 'STRN', 'CLAV']
+            self.capteurs = ['LSHO',             'C7', 'T10', 'STRN', 'CLAV']
+            self.n_in = len(self.capteurs)*2
+        else:
+            print('Error with the type of Data. The Type of data should be \'ITW\', \'FD\' or \'CP\'')
 
         self.model = nn.Sequential(nn.Linear(self.n_in, n_h, bias=True),
                              nn.ReLU(),
@@ -34,18 +42,26 @@ class Neural_Network(nn.Module):
     def setPatch(self, p):
         self.patch = p
 
-    def train(self, train, nbrIt = 600):
+    def train(self, train, nbrIt = 1000):
 
         Xtrain, Ytrain, start_step, end_step = self.shapeTrainingAndTestingData(train) # the data are shaped to fit the neural network
         x = torch.from_numpy(Xtrain).float()
         y = torch.from_numpy(Ytrain.reshape(Ytrain.shape[0],1)).float()
-        y_pred=[]
+        y_pred = torch.from_numpy(np.array([])).float()
         for epoch in range(nbrIt):
             # Forward Propagation
+            if(x.shape[0]==0):
+                print('empty array given for training, abort')
+                break
             y_pred = self.model(x)
-
             # Compute and print loss
             loss = self.criterion(y_pred, y)
+
+            l1 = 0
+            for p in self.model.parameters():
+                l1 = l1 + p.abs().sum()
+            loss = loss + self.reg * l1
+
 
             #if epoch % 20 == 0 : print('epoch: ', epoch,' loss: ', loss.item())
 
@@ -62,7 +78,7 @@ class Neural_Network(nn.Module):
         Y_denormalized = self.denormalize(Ytrain,start_step,end_step)
         #print('targeted ouptup: ', Y_denormalized)
         #print('obtained output: ', result)
-        print( 'difference between actual and predicted output after training: ', Y_denormalized- np.vectorize(round)(result))
+        #print( 'difference between actual and predicted output after training: ', Y_denormalized- np.vectorize(round)(result))
 
         return result
 
@@ -70,7 +86,9 @@ class Neural_Network(nn.Module):
         Xtest, Ytest, start_step, end_step = self.shapeTrainingAndTestingData(test)
         x = torch.from_numpy(Xtest).float()
         y = torch.from_numpy(Ytest.reshape(Ytest.shape[0],1)).float()
-
+        if(x.shape[0]==0):
+            print('empty array given for testing, abort')
+            return 0
         y_pred = self.model(x)
 
         result = np.vectorize(round)(self.denormalize(y_pred.detach().numpy().transpose(),start_step,end_step))
@@ -94,7 +112,11 @@ class Neural_Network(nn.Module):
             capteur = 'RHEE'
         data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
         indMax = np.sort(np.ravel(maxLocal(data)))
+        indMin = np.sort(np.ravel(minLocal(data)))
+        indMin, indMax = cleanMinMax(indMin, indMax)
         event_frame = event.GetFrame()
+        end_step = len(data)
+        start_step = indMax[-1]
         for i in range(len(indMax)):
             if indMax[i]>event_frame:
                 start_step = indMax[i-1]+1
@@ -107,44 +129,48 @@ class Neural_Network(nn.Module):
         return start_step, end_step
 
     def shapeStepData(self, acq, start_step, end_step):
-        if(end_step-start_step<0) :
+        if(end_step-start_step<=0) :
             print('error with the step boundaries')
             return(np.array([]))
         step = []
         #type = []
         resume ={}
-
-
+        f= False
+        prob=[]
         for capteur in self.capteurs:
+            #print(capteur)
             data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
             indMax = np.ravel(maxLocal(data))
+            indMin = np.ravel(minLocal(data))
+            indMin, indMax = cleanMinMax(indMin, indMax)
             cnt = 0
             locCount = 0
-            f= False
             for i in indMax:
-                if start_step - self.tol <= i and  i-self.tol <= end_step and locCount <2 :
+                if start_step - self.tol <= i and  i-self.tol <= end_step and locCount <1 :
                     step.append((i-start_step)/(end_step-start_step))
                     #type.append(capteur + ' max')
                     cnt += 1
                     locCount +=1
-            while(locCount !=2 and self.patch):
+            while(locCount <1 and self.patch):
                 step.append(0)
                 f=True
                 locCount +=1
+                prob.append(capteur+' max ' + str(locCount))
             resume[capteur + ' max'] = cnt
             cnt = 0
-            indMin = np.ravel(minLocal(data))
+
             locCount = 0
             for i in indMin:
-                if start_step-self.tol <= i and  i-self.tol<= end_step and locCount <2:
+                if start_step-self.tol <= i and  i-self.tol<= end_step and locCount <1:
                     step.append((i-start_step)/(end_step-start_step))
                     #type.append(capteur + ' min')
                     cnt+=1
                     locCount+=1
-            while(locCount !=2 and self.patch):
+            while(locCount <1 and self.patch):
                 step.append(0)
                 f= True
                 locCount +=1
+                prob.append(capteur+' min ' + str(locCount))
             resume[capteur + ' min'] = cnt
             #print(type)
             #print(resume)
@@ -154,7 +180,11 @@ class Neural_Network(nn.Module):
             #print(indMax)
             #print(start_step)
             #print(end_step)
-        if(f):print('Some data have been patched')
+        if(f):
+            if len(prob) > self.n_in/4 :
+                print('Some data were too corrupted to be usefully patched and were droped')
+                return np.array([])
+            print('Some data have been patched ', prob)
         return np.array(step)
 
 
