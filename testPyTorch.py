@@ -14,12 +14,12 @@ from network import Neural_Network
 import torch
 import torch.nn as nn
 
-tournus = 4
+tournus = 2
 
 
 label = 'Foot_Strike_GS'
 contexte = 'Left'
-type = 'CP'
+type = 'FD'
 
 if tournus == 1:
     label = 'Foot_Off_GS'
@@ -36,11 +36,14 @@ path = 'Sub_DB_Checked'+'\\'+ type
 axe = 2
 
 files = allFiles(path)
+print('nombres de relevés : ', len(files))
 #GUIplot(files)
 
 for t in np.arange(0, 10, 2):
+    mean = []
     print('-----------------------------------t = ', t)
     for lab in ['Foot_Strike_GS','Foot_Off_GS']:
+        mean = []
         for cont in ['Left', 'Right']:
             train, test = selectWithExistingEvent(files, lab, cont)
             #print('number of testing instances: ', len(test))
@@ -48,9 +51,11 @@ for t in np.arange(0, 10, 2):
             nnOL = Neural_Network(lab,cont,type,5,t)
             nnOL.train(train)
             err = nnOL.test(test)
-            print('actual testing error: ', err)
-            print('label: ', lab, ' contexte: ', cont, ' type: ', type, ' err on training: ',  np.abs(err).mean())
-
+            mean.append(np.abs(err).mean())
+            #print('actual testing error: ', err)
+            #print('label: ', lab, ' contexte: ', cont, ' type: ', type, ' err on training: ',  np.abs(err).mean())
+    mean = np.array(mean)
+    print('moyenne des erreurs sur les 4 events :', mean.mean())
 
 
 
@@ -121,7 +126,7 @@ print('label: ', label, ' contexte: ', contexte, ' type: ', type)
 
 
 
-'''
+
 '''
 
 #cross correlation with tolerance as an hyper parameter
@@ -136,7 +141,7 @@ bh=0
 bt=0
 berr=[]
 for h in np.arange(1, 12, 1):
-    print('-----------------------------------h = ', h)
+    print('--------------------------------------------h = ', h)
     for t in np.arange(0, 10, 2):
         print('-----------------------------------t = ', t)
         err = []
@@ -172,10 +177,8 @@ print('actual testing error: ', err)
 print( 'mean: ', np.abs(err).mean())
 print('label: ', label, ' contexte: ', contexte, ' type: ', type)
 
+
 '''
-'''
-for v in train:
-    tr=train.remove(v)
 
 nnOL = Neural_Network('Foot_Off_GS','Left','ITW', 20, 5, 0.5)
 nnOL.train(train)
@@ -215,7 +218,6 @@ nnOL = Neural_Network('Foot_Off_GS','Left','ITW')
 nnOL.train(train)
 err = nnOL.test(test)
 print('testing error: ', err)
-nnOL.addPredictedEvent(acq)
 
 #GUIplot([acq])
 
@@ -227,7 +229,6 @@ nnSL = Neural_Network('Foot_Strike_GS', 'Left','ITW')
 nnSL.train(train)
 err = nnSL.test(test)
 print('testing error: ', err)
-nnSL.addPredictedEvent(acq)
 
 print( '-----------------------------------Foot_Off_GS Right')
 train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Right')
@@ -236,7 +237,6 @@ nnOR = Neural_Network('Foot_Off_GS','Right','ITW')
 nnOR.train(train)
 err = nnOR.test(test)
 print('testing error: ', err)
-nnOR.addPredictedEvent(acq)
 
 print( '-----------------------------------Foot_Strike_GS Right')
 train, test = selectWithExistingEvent(files, 'Foot_Strike_GS', 'Right')
@@ -245,7 +245,14 @@ nnSR = Neural_Network('Foot_Strike_GS','Right','ITW')
 nnSR.train(train)
 err = nnSR.test(test)
 print('testing error: ', err)
-nnSR.addPredictedEvent(acq)
+
+
+
+nnOL.addPredictedEvent([acq])
+nnSL.addPredictedEvent([acq])
+nnOR.addPredictedEvent([acq])
+nnSR.addPredictedEvent([acq])
+
 
 save(acq, 'test2.c3d')
 #GUIplot([acq])
