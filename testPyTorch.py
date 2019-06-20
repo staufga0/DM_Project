@@ -14,12 +14,12 @@ from network import Neural_Network
 import torch
 import torch.nn as nn
 
-tournus = 2
+tournus = 1
 
 
 label = 'Foot_Strike_GS'
 contexte = 'Left'
-type = 'FD'
+type = 'ITW'
 
 if tournus == 1:
     label = 'Foot_Off_GS'
@@ -55,7 +55,7 @@ for t in np.arange(0, 10, 2):
             #print('actual testing error: ', err)
             #print('label: ', lab, ' contexte: ', cont, ' type: ', type, ' err on training: ',  np.abs(err).mean())
     mean = np.array(mean)
-    print('moyenne des erreurs sur les 4 events :', mean.mean())
+    #print('moyenne des erreurs sur les 4 events :', mean.mean())
 
 
 
@@ -123,7 +123,7 @@ print( 'mean: ', np.abs(err).mean())
 print('label: ', label, ' contexte: ', contexte, ' type: ', type)
 
 
-
+'''
 
 
 
@@ -176,7 +176,7 @@ err = nnOL.test(test)
 print('actual testing error: ', err)
 print( 'mean: ', np.abs(err).mean())
 print('label: ', label, ' contexte: ', contexte, ' type: ', type)
-
+'''
 
 '''
 

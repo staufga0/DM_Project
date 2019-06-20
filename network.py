@@ -50,7 +50,7 @@ class Neural_Network(nn.Module):
         Xtrain, Ytrain, start_step, end_step = self.shapeTrainingAndTestingData(train) # the data are shaped to fit the neural network
         x = torch.from_numpy(Xtrain).float()
         y = torch.from_numpy(Ytrain.reshape(Ytrain.shape[0],1)).float()
-
+        #print('Context: ', self.cont, ' label: ', self.label, ' nbr of training instances : ', x.shape[0])
 
         y_pred = torch.from_numpy(np.array([])).float()
 
@@ -101,6 +101,7 @@ class Neural_Network(nn.Module):
         x = torch.from_numpy(Xtest).float()
         y = torch.from_numpy(Ytest.reshape(Ytest.shape[0],1)).float()
 
+        # print('Context: ', self.cont, ' label: ', self.label, ' nbr of tresting instances : ', x.shape[0])
         # as the shaping of data ignore some data if they are unshapable,
         # we check if the tresting set is not empty
         if(x.shape[0]==0):
