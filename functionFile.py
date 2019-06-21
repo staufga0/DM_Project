@@ -324,19 +324,36 @@ def pasR(acq, capteurSet):
 
 # But : prédire la position des pas / events
 # In : les données ('acr'), la distance moyenne entre event et extremum ('moyenne'), tous les capteurs qu'on souhaite utilisé ('capteurSet'), et si c'est un min ou max ('genre')
-def calcPredic(acr, moyenne, capteurSet, genre):
+def calcPredic(acr, moyenne, capteurSet, genre, type='\ITW'):
     predi = {}      # Dico qui contiendra toutes les prédictions, de même taille que capteurSet
-    taux = 0.8      # Taux pour le seuil
+
 
     pasPlus, pasRank = pasR(acr, capteurSet)        # On récupère les frames des pas
     dataTout = np.array(acr.GetPoint(capteurSet[0]).GetValues()[:, 2])             # La totalité des données
+    n_frames, first_frame, last_frame = frameData(acr)
+
+    if type == '\ITW':
+        taux = 0.8      # Taux pour le seuil
+        pasRank = pasPlus               # On prend les bouts (première et dernière frame)
+
+        if len(pasRank) == 1:
+            pasRank = np.append(0, pasRank)
+            pasRank = np.append(pasRank, len(dataTout)-1)
+
+    if type == '\CP' or type == '\FD':
+        taux = 0.7      # Taux pour le seuil
+        # pasRank = pasPlus               # On prend les bouts (première et dernière frame)
+        pasRank = np.append(0, pasRank)
+
 
     for capteur in capteurSet:      # Initialisation du dico predi, qui contiendra des arrays de prédictions des events
         predi[capteur] = []
 
-    pasRank = pasPlus               # On prend les bouts (première et dernière frame)
+
 
     for i in range(len(pasRank)-1):         # On parcourt les pas
+        if np.abs(pasRank[i] - pasRank[i+1]) < 8:
+            continue
         # print('De ', pasRank[i], ' a ', pasRank[i+1])
         for capteur in capteurSet:          # Chaque capteur fait sa prédiction
             data = np.array(acr.GetPoint(capteur).GetValues()[pasRank[i]:pasRank[i+1], 2])
@@ -345,20 +362,12 @@ def calcPredic(acr, moyenne, capteurSet, genre):
 
             if genre[capteur] == 'max':
                 Max = Max[data[Max] > seuil]
-                # print(capteur, ' -- pas :', pasRank[i], '- Max :', Max[-1], '- moyenne :', moyenne[capteur])
-                if (len(Max) == 1) and (Max[0] == 0):       # Au cas où...
-                    # print('Manque d information de ', capteur, '--- pas :', pasRank[i], ' et max :', Max[0])
-                    Max = np.append(Max, Max[0] + (pasRank[i] - pasRank[i-1]))
-                    # print('Dernier max :', Max[-1])
-                predi[capteur].append(round(pasRank[i] + Max[-1] + moyenne[capteur]))   # + pasRank, à cause du décalage causé par le pas
+                predi[capteur].append(round(pasRank[i] + Max[-1] + moyenne[capteur] + first_frame-1))   # + pasRank, à cause du décalage causé par le pas
             if genre[capteur] == 'min':
                 Min = Min[data[Min] < seuil]
-                if len(Min) == 0 or (len(Min) == 1 and capteur == 'C7'):
-                    # print('Manque d information de ', capteur, ' --- fin :', len(dataTout), ' pas :', pasRank[i])
+                if len(Min) == 0:
                     Min = [minLocal(np.array(acr.GetPoint(capteur).GetValues()[:, 2]))[-1] - pasRank[i-1]]
-                    # Min = [len(dataTout)-1 - pasRank[i]]
-                # print(capteur, ' -- pas :', pasRank[i], '- Min :', Min[-1], '- moyenne :', moyenne[capteur])
-                predi[capteur].append(round(pasRank[i] + Min[-1] + moyenne[capteur]))
+                predi[capteur].append(round(pasRank[i] + Min[-1] + moyenne[capteur] + first_frame-1))
 
     return predi
 
@@ -400,7 +409,7 @@ def weightUpDate(arrayPredi, evenFrame, weight, capteurSet, nbTest):
         nouvScore[capteur] = score/somme    # On normalise, pour la somme donne 1
         n += 1
 
-    imp = 1
+    imp = 2
     # Mise à jour des poids
     for capteur in capteurSet:
         nouvWeight[capteur] = (weight[capteur]*nbTest + imp*nouvScore[capteur])/(nbTest+imp)
@@ -428,8 +437,7 @@ def test(fileSet, eventLabel, eventContext, moyenne, weight, capteurSet, genre, 
 
     return erreur
 
-def calculErreur(predi, capteurSet, evenFrame, weight):
-    erreur = []
+def calculErreur(predi, capteurSet, evenFrame, weight, erreur):
     arrayPredi, arrayWeight = np.asarray(dic2mat(predi, capteurSet)) , dic2mat(weight, capteurSet)        # Transformation en array
     meanPrediction = np.round(np.dot(arrayWeight, arrayPredi))         # On applique les poids pour faire la moyenne pondérée
     erreur.append(np.min(np.abs(meanPrediction - evenFrame)))   # On trouve l'erreur (qui est la distance entre l'event et notre prediction correspondante)

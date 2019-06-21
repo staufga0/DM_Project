@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from tkinter import *
 from tkinter.messagebox import *
 from tkinter import ttk
-from deux import *
+from functionFile import *
 
 # But : modifier le bouton, pour ploter un seul graphe
 # In : l'ensemble des fichiers ('files'), le sensor ('posiCombo'), l'axe ('axeCombo'), le bouton qui fait les plot ('buttonCombo'), et le numéro du fichier ('fileCombo')
