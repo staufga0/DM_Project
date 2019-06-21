@@ -5,7 +5,7 @@ from __future__ import absolute_import
 
 import numpy as np
 import os           # Pour lire le nom des fichiers
-from ITW_functionFile import *  # Les fonctions que j'ai fait à côté
+from functionFile import *  # Les fonctions que j'ai fait à côté
 from btk import btk # BTK
 from array import *
 import matplotlib   # Pour les plots
