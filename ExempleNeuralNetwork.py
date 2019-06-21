@@ -4,6 +4,10 @@ from __future__ import absolute_import
 
 import numpy as np
 import os           # Pour lire le nom des fichiers
+
+import sys
+sys.path.append('./Source')
+
 from file import *  # Les fonctions que j'ai fait à côté
 from btk import btk # BTK
 import matplotlib   # Pour les plots
@@ -194,7 +198,6 @@ bh, bt, bnn = crossValidation(label, contexte, type)
 # Exemple of predicting all the event for the ITW files.
 ITW, FD, CP = trainAllNetwork() # we generate the 12 neural networks
 
-filesITW = allFiles('Sub_DB_Checked\CP') # we load the ITW files
-predictEvents(filesITW, CP) # this function add all the predicted events to all the files
-
+filesITW = allFiles('Sub_DB_Checked\ITW') # we load the ITW files
+predictEvents(filesITW, ITW) # this function add all the predicted events to all the files
 GUIplot(filesITW)

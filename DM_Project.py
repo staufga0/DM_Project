@@ -6,6 +6,9 @@ from __future__ import absolute_import
 import numpy as np
 import os           # Pour lire le nom des fichiers
 
+import sys
+sys.path.append('./Source')
+
 from GUIplot import *
 from plotFile import *
 from btk import btk # BTK
