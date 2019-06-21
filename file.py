@@ -104,7 +104,7 @@ def plotEvent(acq, ax):
 
     return ax
 
-# Selectionne les éléments de files ayant un event de Type labels
+# Selectionne les éléments de files ayant un event correspondant au label et au contexte
 # Renvoie en training set (3/4) et un testing set (1/4) constitués de ces éléments.
 def selectWithExistingEvent(files, lab, cont):
     eventfiles = []
@@ -115,89 +115,9 @@ def selectWithExistingEvent(files, lab, cont):
             if event.GetLabel() == lab and event.GetContext()==cont:                        # Test si c'est le label recherché
                 eventfiles.append(acq)
                 break
-    test = np.random.choice(eventfiles, (len(eventfiles)//4), replace = False)
+    test = np.random.choice(eventfiles, (len(eventfiles)//4), replace = False).tolist()
     train = list(set(eventfiles)-set(test))
     return train, test
-
-
-def selectWithExistingEventWithValidation(files, lab, cont):
-    eventfiles = []
-    for acq in files:
-        n_events = acq.GetEventNumber()             # On récupère le nombre d'évènements, pour les parcourirs
-        for numevent in range(n_events):            # On parcours les indices des évènements
-            event = acq.GetEvent(numevent)          # On récupère un évènement, grâce à son indice correspondant
-            if event.GetLabel() == lab and event.GetContext()==cont:                        # Test si c'est le label recherché
-                eventfiles.append(acq)
-                break
-    test = np.random.choice(eventfiles, (len(eventfiles)//4), replace = False)
-    train = list(set(eventfiles)-set(test))
-    validation = np.random.choice(train, len(test), replace = False)
-    train = list(set(train)-set(validation))
-    return train, validation, test
-
-# Calcule les frames de départ et de fin du "pas" dans lequel se trouve events
-# un "pas" et définit comme la durée entre deux max du talon du coté correpondant à l'event
-def selectStep(acq, event):
-    if event.GetContext() == 'Left':
-        capteur = 'LHEE'
-    else:
-        capteur = 'RHEE'
-    data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
-    indMax = np.ravel(maxLocal(data))
-    event_frame = event.GetFrame()
-    for i in range(len(indMax)):
-        if indMax[i]>event_frame:
-            start_step = indMax[i-1]+1
-            end_step = indMax[i]+1
-            break
-    return start_step, end_step
-
-#select all the steps
-def selectAllSteps(acq,cont):
-    if cont == 'Left':
-        capteur = 'LHEE'
-    else:
-        capteur = 'RHEE'
-    data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
-    indMax = np.ravel(maxLocal(data))
-    start_steps = []
-    end_steps = []
-    for i in range(len(indMax)-1):
-        start_steps.append(indMax[i]+1)
-        end_steps.append(indMax[i+1]+1)
-    return start_steps, end_steps
-
-# shape
-def shapeStepDataITW(acq, start_step, end_step):
-    step = []
-    type = []
-    resume ={}
-    #capteurs = ['RFHD', 'LFHD','RPSI','LPSI', 'RTOE','LTOE', 'STRN', 'CLAV','T10','C7']
-    #capteurs = ['RFHD', 'LFHD','RPSI','LPSI','RASI','LASI','RWRA', 'LWRA', 'STRN', 'CLAV','T10','C7']
-    capteurs = ['STRN', 'CLAV','T10']
-    for capteur in capteurs:
-        data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
-        indMax = np.ravel(maxLocal(data))
-        cnt = 0
-        for i in indMax:
-            if start_step-4 <= i and  i<= end_step+4:
-                step.append((i-start_step)/(end_step-start_step))
-                type.append(capteur + ' max')
-                cnt += 1
-        resume[capteur + ' max'] = cnt
-        cnt = 0
-        indMin = np.ravel(minLocal(data))
-        for i in indMin:
-            if start_step-4 <= i and  i<= end_step+4:
-                step.append((i-start_step)/(end_step-start_step))
-                type.append(capteur + ' min')
-                cnt+=1
-        resume[capteur + ' min'] = cnt
-    #print(type)
-    #print(resume)
-    if(len(step)!=12):print('ARRETER TOUT !!!!! ', len(step), resume)
-    return np.array(step)
-
 
 # But : Récupérer les données
 # In : path des données (Attention : le chemin commence de là où est le fichier)

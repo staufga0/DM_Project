@@ -33,10 +33,8 @@ print('label: ', label, ' contexte: ', contexte, ' type: ', type)
 
 
 path = 'Sub_DB_Checked'+'\\'+ type
-axe = 2
 
 files = allFiles(path)
-print('nombres de relevés : ', len(files))
 #GUIplot(files)
 
 for t in np.arange(0, 10, 2):
@@ -129,7 +127,7 @@ print('label: ', label, ' contexte: ', contexte, ' type: ', type)
 
 '''
 
-#cross correlation with tolerance as an hyper parameter
+#cross validation with tolerance as an hyper parameter
 
 v_batch = int(len(train)/4+0.5)    #used for cross validation using 1/4 of the training set each time
 if v_batch == 0:v_batch =1
@@ -176,42 +174,14 @@ err = nnOL.test(test)
 print('actual testing error: ', err)
 print( 'mean: ', np.abs(err).mean())
 print('label: ', label, ' contexte: ', contexte, ' type: ', type)
-'''
+
 
 '''
 
-nnOL = Neural_Network('Foot_Off_GS','Left','ITW', 20, 5, 0.5)
-nnOL.train(train)
-err = nnOL.test(validation)
-print('validation error: ', err)
 
-min = 100
-best =  Neural_Network('Foot_Off_GS','Left','ITW')
-bh=5
-bt=0
-berr=[]
-for h in np.arange(1, 7, 1):
-    print('-----------------------------------h = ', h)
-    for t in np.arange(0, 11, 1):
-        print('-----------------------------------t = ', t)
-
-        nnOL = Neural_Network('Foot_Off_GS','Left','ITW', h, t)
-        nnOL.train(train)
-        err = nnOL.test(validation)
-        if np.abs(err).mean()<min:
-            berr= err
-            min = np.abs(err).mean()
-            best = nnOL
-            bh=h
-            bt=t
-
-print(min)
-print('best error on validation Data:', berr)
-print('bh = ', bh)
-print('bt = ', bt)
 
 '''
-'''
+
 
 train, test = selectWithExistingEvent(files, 'Foot_Off_GS', 'Left')
 nnOL = Neural_Network('Foot_Off_GS','Left','ITW')
@@ -270,48 +240,5 @@ for numevent in range(acq.GetEventNumber()):
 #GUIplot([acq])
 #print('number of testing instances: ', len(test))
 #print('number of training instances: ',len(train))
-
-'''
-
-'''
-acq = files[9]
-
-metadata = acq.GetMetaData()
-point_labels = list(metadata.FindChild("POINT").value().FindChild("LABELS").value().GetInfo().ToString())
-
-point_labels = ['RFHD','LFHD','LBHD','RSHO','RASI','RPSI','LPSI','RHEE', 'STRN','CLAV','T10','C7']
-min_max = np.array([])
-print(point_labels)
-for l in point_labels:
-    data = np.array(acq.GetPoint(l.strip()).GetValues()[:, 2])
-
-    Min, Max = minLocal(data), maxLocal(data)
-    #plt.plot(Min, np.zeros(Min.shape[0]), 'o b')
-    #plt.legend('minimum for capteur ', l)
-
-    #min_max = np.append(min_max,Min)
-    min_max = np.append(min_max,Max)
-
-#plt.plot(min_max, np.zeros(min_max.shape[0]), 'o b')
-#plt.ylabel('some numbers')
-#plt.show()
-min_max = np.sort(min_max)
-isole = []
-for i in range(min_max.shape[0]-1):
-    if i != 0:
-        if(min_max[i]-min_max[i-1]>2 and min_max[i+1]-min_max[i]>2):
-            isole.append(min_max[i])
-
-print(isole)
-
-capteur_label = []
-for l in point_labels:
-
-    data = np.array(acq.GetPoint(l.strip()).GetValues()[:, 2])
-
-    Min, Max = minLocal(data), maxLocal(data)
-    if(len(set(Min.tolist())& set(isole)) !=0 ): capteur_label.append('min '+l)
-    if(len(set(Max.tolist())& set(isole)) !=0 ): capteur_label.append('max '+l)
-print(capteur_label)
 
 '''

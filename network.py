@@ -121,7 +121,7 @@ class Neural_Network(nn.Module):
     # by the NN for this acquisition
     def predictEvent(self, acq):
         # we we find all the steps in the acquisition
-        start_steps, end_steps = selectAllSteps(acq,self.cont)
+        start_steps, end_steps = self.selectAllSteps(acq,self.cont)
         predEventFrames = []
 
         # for each step, we predict one event
@@ -138,7 +138,7 @@ class Neural_Network(nn.Module):
 
     # this function add to the aquisitions all the predicted events
     # so that they can be saved
-    def addPredictedEvent(self, File):
+    def addPredictedEvent(self, file):
         for acq in file:
             predEventFrames = self.predictEvent(acq)
             for numevent in range(acq.GetEventNumber()):
@@ -149,7 +149,7 @@ class Neural_Network(nn.Module):
 
             for frame in predEventFrames:
                 addEvent(acq, self.label, self.cont, int(frame))
-                print('event added : ', int(frame))
+                #print('event added : ', int(frame))
 
 
     # Calcule les frames de départ et de fin du "pas" dans lequel se trouve events
@@ -178,6 +178,23 @@ class Neural_Network(nn.Module):
             print('error with the step boundaries in selectStepWithEvent: eventframe: ', event_frame, ' start_step: ', start_step,' end_step: ', end_step, ' indMax: ', indMax)
 
         return start_step, end_step
+
+    #select all the steps
+    def selectAllSteps(self,acq,cont):
+        if self.cont == 'Left':
+            capteur = 'LHEE'
+        else:
+            capteur = 'RHEE'
+        data = np.array(acq.GetPoint(capteur).GetValues()[:, 2])
+        indMax = np.ravel(maxLocal(data))
+        indMin = np.sort(np.ravel(minLocal(data)))
+        indMin, indMax = cleanMinMax(indMin, indMax)
+        start_steps = []
+        end_steps = []
+        for i in range(len(indMax)-1):
+            start_steps.append(indMax[i]+1)
+            end_steps.append(indMax[i+1]+1)
+        return start_steps, end_steps
 
     # create the shaped data corresponding to a step to have an array of size n_in
     def shapeStepData(self, acq, start_step, end_step):
