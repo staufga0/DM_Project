@@ -226,7 +226,7 @@ def plotPosi(acq, position, axe, ax, event=0):
     data = np.array(acq.GetPoint(position).GetValues()[:, dicoAxe[axe]])
     n_frames, first_frame, last_frame = frameData(acq)
     Min, Max = minLocal(data), maxLocal(data)
-    #Min, Max = cleanMinMax(Min, Max)  #used to clean some local extremums
+    Min, Max = cleanMinMax(Min, Max)  #used to clean some local extremums
     # Plot part
     ax.plot(np.array(range(first_frame, last_frame + 1)), data, 'k')
     ax.plot(Min, data[Min], 'o b')

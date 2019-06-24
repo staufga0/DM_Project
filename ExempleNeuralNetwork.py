@@ -30,8 +30,8 @@ def crossValidation(label, contexte, type):
     #start finding best value for hyper parameter h = number of hidden layers, t = tolerance to add to a step
     min = 100
     best =  Neural_Network(label,contexte,type)
-    bh=0
-    bt=0
+    bh=0                    # the best number of neurone
+    bt=0                    # the best tolerance for the boundaries of the step
     berr=[]
     for h in np.arange(1, 12, 1):
         print('--------------------------------------------h = ', h)
