@@ -15,102 +15,98 @@ import matplotlib.pyplot as plt
 from tkinter import *
 from tkinter.messagebox import *
 from tkinter import ttk
-from functionFile import *
-from dictionnaire import *
 
-type = '\ITW'
+type = '\CP'
 path = 'Sub_DB_Checked' + type
-
 # Charge les données dans acq
 files = allFiles(path)
 
+if type == '\ITW':
+    from ITW_dictionnaire import *
+    from ITW_functionFile import *  # Les fonctions que j'ai fait à côté
+
+elif type == '\FD':
+    from FD_dictionnaire import *
+    from FD_functionFile import *  # Les fonctions que j'ai fait à côté
+
+elif type == '\CP':
+    from CP_dictionnaire import *
+    from CP_functionFile import *  # Les fonctions que j'ai fait à côté
+
 # In[3]
 
-capteurDico, genreDico = dicoCapteurGenre(type)
+capteurDico, genreDico = dicoCapteurGenre()
 eventLabel, eventContext = "Foot_Off_GS", "Left"
 # Red = 'Left'    -        Green = 'Right'
 
-evenLabel_Set = ["Foot_Strike_GS", "Foot_Off_GS"]
+evenLabel_Set = ["Foot_Off_GS", "Foot_Strike_GS"]
 eventContext_Set = ["Left", "Right"]
 acfin = files[-1]
-acfinal = files[-2]
+acfinal = files[-1]
 n_events = acfinal.GetEventNumber()
 
 for num in range(n_events):
     acfinal.RemoveEvent(0)
 
-nombre_ite = 10
-
 
 for eventContext in eventContext_Set:
     for eventLabel in evenLabel_Set:
-        print('\n\nLabel : ', eventLabel, ' - Context :', eventContext)
 
-        for p in range(nombre_ite):
+        # On divise les fichiers entre Training et Testing
+        trainingSet, testingSet = selectWithExistingEvent(files, eventLabel, eventContext)
+        print('On a ', len(trainingSet), 'trainings et ', len(testingSet), 'tests')
 
-            # On divise les fichiers entre Training et Testing
-            trainingSet, testingSet = selectWithExistingEvent(files, eventLabel, eventContext)
-            # print('On a ', len(trainingSet), 'trainings et ', len(testingSet), 'tests')
+        # Les capteurs qu'on choisit et si on utilise des min ou des max
+        capteurSet = capteurDico[eventLabel][eventContext]
+        genre = genreDico[eventLabel][eventContext]
 
-            # Les capteurs qu'on choisit et si on utilise des min ou des max
-            capteurSet = capteurDico[eventLabel][eventContext]
-            genre = genreDico[eventLabel][eventContext]
+        # Initialisation des variables
+        erreur, erreurFinal = [], []
+        numTest = 0
+        weight = weightCreation(capteurSet)
 
-            # Initialisation des variables
-            erreur, erreurFinal = [], []
-            numTest = 0
-            weight = weightCreation(capteurSet)
+        # Calcul des distances moyennes entre un event et un extremum
+        moyenne = {capteur : mean_distance(trainingSet, eventLabel, eventContext, capteur, genre[capteur], 0.6) for capteur in capteurSet}   # Ecart moyen entre l'extremum et l'event
 
-            # Calcul des distances moyennes entre un event et un extremum
-            moyenne = {capteur : mean_distance(trainingSet, eventLabel, eventContext, capteur, genre[capteur], 0.6) for capteur in capteurSet}   # Ecart moyen entre l'extremum et l'event
+        # On parcourt tous les fichiers d'entrainements (trainingSet)
+        for acr in trainingSet:
 
-            # On parcourt tous les fichiers d'entrainements (trainingSet)
-            for acr in trainingSet:
+            # Numéro du test (combien de test on a déjà fait)
+            numTest += 1
 
-                # Numéro du test (combien de test on a déjà fait)
-                numTest += 1
+            # On récupère la frame de l'event - Utile pour les tests après (et calculer l'erreur)
+            even, evenFrame = closestEvent(acr, acr.GetEvents(), eventLabel, eventContext)
 
-                # On récupère la frame de l'event - Utile pour les tests après (et calculer l'erreur)
-                even, evenFrame = closestEvent(acr, acr.GetEvents(), eventLabel, eventContext)
+            # Dico où chaque capteur fait une prédiction des events
+            predi_dic = calcPredic(acr, moyenne, capteurSet, genre)
 
-                # Dico où chaque capteur fait une prédiction des events
-                predi_dic = calcPredic(acr, moyenne, capteurSet, genre, type)
+            # Renvoie les prédictions de chaque capteur, et l'erreur totale
+            prediction, erreur = calculErreur(predi_dic, capteurSet, evenFrame, weight)
 
+            # Mise à jour des poids
+            weight = weightUpDate(prediction, evenFrame, weight, capteurSet, numTest)
 
+        # En sortant, on obtient les poids finaux
 
-                # Renvoie les prédictions de chaque capteur, et l'erreur totale
-                prediction, erreur = calculErreur(predi_dic, capteurSet, evenFrame, weight, erreur)
-
-                # Mise à jour des poids
-                weight = weightUpDate(prediction, evenFrame, weight, capteurSet, numTest)
-
-            # En sortant, on obtient les poids finaux
-
-            # print('**Erreur :', (erreur))
-            # print('Moyenne :', np.mean(erreur))
-            # print('Poids finaux :', weight)
-
-            # Erreur de chaque testing file
-        erreurFinal = test(testingSet, eventLabel, eventContext, moyenne, weight, capteurSet, genre)
-
-
-        # print('Erreur final :', erreurFinal)
-        print('Moyenne :', np.mean(erreurFinal))
+        print('**Erreur :', (erreur))
+        print('Moyenne :', np.mean(erreur))
         # print('Poids finaux :', weight)
 
+        # Erreur de chaque testing file
+        erreurFinal = test(testingSet, eventLabel, eventContext, moyenne, weight, capteurSet, genre)
+
+        print('Erreur final :', (erreurFinal))
+        # print('Poids finaux :', weight)
+
+
+
+        acfinal = exempleFinal(acfinal, moyenne, capteurSet, genre, weight, eventLabel, eventContext)
 
 
 # Si on souhaite ploter un graphe avec les events rajouter, il suffit d'enlever les commentaires des 4 lignes suivants :
 
 # plt.figure(figsize=(9,7))
 # guiPlot = plt.subplot()
-# guiPlot = plotPosi(acfinal, 'RANK', 'z', guiPlot)
+# guiPlot = plotPosi(acfin, 'RKNE', 'z', guiPlot)
 # plt.show(block=True)
 # GUIplot(trainingSet)
-
-
-
-# writer = btk.btkAcquisitionFileWriter()
-# writer.SetInput(acfin)
-# writer.SetFilename('newFile.c3d')
-# writer.Update()
