@@ -73,16 +73,13 @@ def plotEvent(acq, ax):
         if context == 'Left':                   # Test si c'est le pied gauche
             if label == 'Foot_Strike_GS':       # Test si c'est quand le pied touche le sol
                 legen['Left - Strike'] = ax.axvline(x = event_frame, color='r', label='Left - Strike', linestyle='--')  # Plot en rouge, avec des tirets
-                # ax.legend([leftLineStrike], 'Left - Strike')
             elif label == 'Foot_Off_GS':        # Test si c'est quand le pied ne touche plus le sol
                 legen['Left - Off'] = ax.axvline(x = event_frame, color='r', label='Left - Off', linestyle='-.')        # Plot en rouge, avec des tirets et des points
         if context == 'Right':                  # Test si c'est le pied droit
             if label == 'Foot_Strike_GS':       # Test si c'est quand le pied touche le sol
                 legen['Right - Strike'] = ax.axvline(x = event_frame, color='g', label='Righ - Strike', linestyle='--') # Plot en vert, avec des tirets
-                # ax.legend([rightLineStrike], 'Strike - Off')
             elif label == 'Foot_Off_GS':        # Test si c'est quand le pied ne touche plus le sol
                 legen['Right - Off'] = ax.axvline(x = event_frame, color='g', label='Right - Off', linestyle='-.')      # Plot en rouge, avec des tirets et des points
-                # ax.legend([rightLineOff], 'Right - Off')
 
     truc = [value for idx, value in enumerate(legen)]
     ax.legend(truc)
@@ -120,12 +117,6 @@ def selectStep(acq, event):
     indMax = np.ravel(maxLocal(data))
     seuil = np.mean(np.max(data)*taux + np.min(data)*(1-taux))
     indMax = indMax[data[indMax] > seuil]
-    # event_frame = event.GetFrame()
-    # for i in range(len(indMax)):
-    #     if indMax[i]>event_frame:
-    #         start_step = indMax[i-1]+1
-    #         end_step = indMax[i]+1
-    #         break
     return indMax[0], indMax[1]
 
 # shape
@@ -269,8 +260,8 @@ def plotPosi(acq, position, axe, ax, event=0):
     ax.plot(np.array(range(first_frame-1, last_frame)), data, 'k')
     ax.plot(Min, data[Min], 'o b')
     ax.plot(Max, data[Max], 'o', color='purple')
-    ax.axvline(x = pas[0], color = 'cyan')
-    ax.axvline(x = pas[1], color = 'cyan')
+    # ax.axvline(x = pas[0], color = 'cyan')
+    # ax.axvline(x = pas[1], color = 'cyan')
 
 
     if (event != 0):
@@ -342,7 +333,7 @@ def calcPredic(acr, moyenne, capteurSet, genre, type='\ITW'):
 
     if type == '\CP' or type == '\FD':
         taux = 0.7      # Taux pour le seuil
-        # pasRank = pasPlus               # On prend les bouts (première et dernière frame)
+        # pasRank = pasPlus               # On ne prend pas les bouts (première et dernière frame)
         pasRank = np.append(0, pasRank)
 
 
@@ -350,11 +341,9 @@ def calcPredic(acr, moyenne, capteurSet, genre, type='\ITW'):
         predi[capteur] = []
 
 
-
     for i in range(len(pasRank)-1):         # On parcourt les pas
         if np.abs(pasRank[i] - pasRank[i+1]) < 8:
             continue
-        # print('De ', pasRank[i], ' a ', pasRank[i+1])
         for capteur in capteurSet:          # Chaque capteur fait sa prédiction
             data = np.array(acr.GetPoint(capteur).GetValues()[pasRank[i]:pasRank[i+1], 2])
             seuil = np.mean(np.max(data)*taux + np.min(data)*(1-taux))
@@ -362,7 +351,7 @@ def calcPredic(acr, moyenne, capteurSet, genre, type='\ITW'):
 
             if genre[capteur] == 'max':
                 Max = Max[data[Max] > seuil]
-                predi[capteur].append(round(pasRank[i] + Max[-1] + moyenne[capteur] + first_frame-1))   # + pasRank, à cause du décalage causé par le pas
+                predi[capteur].append(round(pasRank[i] + Max[-1] + moyenne[capteur] + first_frame-1))   # + pasRank, à cause du décalage causé par le pas, et + first_frame si la première frame n'est pas 0
             if genre[capteur] == 'min':
                 Min = Min[data[Min] < seuil]
                 if len(Min) == 0:
@@ -443,6 +432,7 @@ def calculErreur(predi, capteurSet, evenFrame, weight, erreur):
     erreur.append(np.min(np.abs(meanPrediction - evenFrame)))   # On trouve l'erreur (qui est la distance entre l'event et notre prediction correspondante)
     return arrayPredi, erreur
 
+# But : faire les prédictions d'un sur un fichier acfin, et rajouter les events dans les données
 def exempleFinal(acfin, moyenne, capteurSet, genre, weight, eventLabel, eventContext):
     predi = calcPredic(acfin, moyenne, capteurSet, genre)
     arrayPredi, arrayWeight = np.asarray(dic2mat(predi, capteurSet)) , dic2mat(weight, capteurSet)        # Transformation en array
