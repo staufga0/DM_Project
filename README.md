@@ -1,4 +1,5 @@
 # DM_Project
+# Quentin Rivollat et Guy-Raphaël Stauffer
 
 Le fichier Data Mining SofameHack project contient notre rapport.
 
