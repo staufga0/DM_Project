@@ -117,7 +117,7 @@ def selectStep(acq, event):
     indMax = np.ravel(maxLocal(data))
     seuil = np.mean(np.max(data)*taux + np.min(data)*(1-taux))
     indMax = indMax[data[indMax] > seuil]
-    return indMax[0], indMax[1]
+    return indMax
 
 # shape
 def shapeStepDataITW(acq, start_step, end_step):
@@ -253,6 +253,7 @@ def plotPosi(acq, position, axe, ax, event=0):
     n_frames, first_frame, last_frame = frameData(acq)
     Min, Max = minLocal(data), maxLocal(data)
     pas = selectStep(acq, position)
+    seuil = np.mean(np.max(data)*0.6 + np.min(data)*(1-0.6))
 
 
     # Plot part
@@ -260,8 +261,9 @@ def plotPosi(acq, position, axe, ax, event=0):
     ax.plot(np.array(range(first_frame-1, last_frame)), data, 'k')
     ax.plot(Min, data[Min], 'o b')
     ax.plot(Max, data[Max], 'o', color='purple')
-    # ax.axvline(x = pas[0], color = 'cyan')
-    # ax.axvline(x = pas[1], color = 'cyan')
+    # ax.axhline(y = seuil)
+    for pasFrame in pas:
+        ax.axvline(x = pasFrame+1, color = 'cyan')
 
 
     if (event != 0):
@@ -379,7 +381,7 @@ def weightCreation(capteurSet):
 # In : les prédictions dans un array, ayant le même ordre que capteurSet ('arrayPredi'), la frame exacte de l'event qui servira à comparer avec la prédiction
 # les derniers poids, utilisés pas la prédiction ('weight'), capteurSet, et 'nbTest' correspond au nombre de test fait jusqu'à maintenant
 # Out : les poids mis à jour
-def weightUpDate(arrayPredi, evenFrame, weight, capteurSet, nbTest):
+def weightUpDate(arrayPredi, evenFrame, weight, capteurSet, nbTest, imp=2):
 
     # Initialisation des variables
     nouvScore = {}      # Score selon la réussite de la prédiction
@@ -398,7 +400,6 @@ def weightUpDate(arrayPredi, evenFrame, weight, capteurSet, nbTest):
         nouvScore[capteur] = score/somme    # On normalise, pour la somme donne 1
         n += 1
 
-    imp = 2
     # Mise à jour des poids
     for capteur in capteurSet:
         nouvWeight[capteur] = (weight[capteur]*nbTest + imp*nouvScore[capteur])/(nbTest+imp)
